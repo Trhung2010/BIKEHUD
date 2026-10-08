@@ -1,0 +1,6 @@
+{
+  "name": "Moto HUD",
+  "description": "Motorcycle Heads-Up Display with real-time speedometer, GPS turn-by-turn navigation, message alerts, windshield mirror reflection mode, and Bluetooth music controls.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
