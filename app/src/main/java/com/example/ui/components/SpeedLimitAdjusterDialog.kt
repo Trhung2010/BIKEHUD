@@ -46,6 +46,8 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -199,6 +201,9 @@ fun SpeedLimitAdjusterDialog(
                                     onAdjustDelta(delta)
                                     sliderValue = (currentSpeedLimit + delta).toFloat().coerceIn(20f, 140f)
                                 }
+                                .semantics {
+                                    contentDescription = if (delta > 0) "Tăng giới hạn $delta ${speedUnit.label}" else "Giảm giới hạn ${-delta} ${speedUnit.label}"
+                                }
                                 .padding(horizontal = 10.dp, vertical = 7.dp)
                         ) {
                             Text(
@@ -291,6 +296,9 @@ fun SpeedLimitAdjusterDialog(
                                 .background(if (isSelected) Color(0xFF1A73E8).copy(alpha = 0.25f) else Color(0xFF131A29))
                                 .border(1.dp, if (isSelected) Color(0xFF1A73E8) else Color(0xFF1E293B), RoundedCornerShape(8.dp))
                                 .clickable { onSetBuffer(buf) }
+                                .semantics {
+                                    contentDescription = "Dung sai cảnh báo: $label"
+                                }
                                 .padding(vertical = 8.dp),
                             contentAlignment = Alignment.Center
                         ) {
