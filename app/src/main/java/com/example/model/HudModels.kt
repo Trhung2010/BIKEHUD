@@ -158,7 +158,13 @@ data class ObdTelemetry(
     val connectedDeviceAddress: String = "",
     val protocol: String = "ISO 15765-4 CAN",
     val errorMessage: String = "",
-    val lastUpdateMs: Long = 0L
+    val lastUpdateMs: Long = 0L,
+    // Monotonic receive times; zero means this PID has never returned valid data.
+    val speedUpdatedAtMs: Long = 0L,
+    val rpmUpdatedAtMs: Long = 0L,
+    val coolantUpdatedAtMs: Long = 0L,
+    val throttleUpdatedAtMs: Long = 0L,
+    val voltageUpdatedAtMs: Long = 0L
 )
 
 data class BluetoothDeviceInfo(
