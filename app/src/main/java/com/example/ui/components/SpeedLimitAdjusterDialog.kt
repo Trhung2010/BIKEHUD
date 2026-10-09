@@ -3,6 +3,10 @@ package com.example.ui.components
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.selection.selectable
+import androidx.compose.foundation.selection.selectableGroup
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -12,6 +16,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.sizeIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -46,8 +51,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
-import androidx.compose.ui.semantics.contentDescription
-import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.*
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -91,7 +95,7 @@ fun SpeedLimitAdjusterDialog(
             color = Color(0xFF0B0F1A)
         ) {
             Column(
-                modifier = Modifier.padding(20.dp),
+                modifier = Modifier.verticalScroll(rememberScrollState()).padding(20.dp),
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
                 // Header
@@ -171,8 +175,8 @@ fun SpeedLimitAdjusterDialog(
                         sliderValue = it
                         onSetSpeedLimit(it.toInt())
                     },
-                    valueRange = 20f..140f,
-                    steps = 23, // 5 km/h increments
+                    valueRange = 20f..160f,
+                    steps = 27, // 5 km/h increments
                     colors = SliderDefaults.colors(
                         thumbColor = Color(0xFFFF1744),
                         activeTrackColor = Color(0xFFFF1744),
@@ -180,14 +184,15 @@ fun SpeedLimitAdjusterDialog(
                     ),
                     modifier = Modifier
                         .fillMaxWidth()
+                        .semantics { contentDescription = "Giới hạn tốc độ cảnh báo, km/h" }
                         .testTag("speed_limit_slider")
                 )
 
                 // Stepper Buttons (-10, -5, -1, +1, +5, +10)
-                Row(
+                FlowRow(
                     modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
+                    horizontalArrangement = Arrangement.spacedBy(6.dp),
+                    verticalArrangement = Arrangement.spacedBy(6.dp)
                 ) {
                     listOf(-10, -5, -1, 1, 5, 10).forEach { delta ->
                         Box(
@@ -197,12 +202,13 @@ fun SpeedLimitAdjusterDialog(
                                     if (delta < 0) Color(0xFF1E293B) else Color(0xFF1E293B)
                                 )
                                 .border(1.dp, if (delta > 0) colorTheme.primaryColor.copy(alpha = 0.5f) else Color(0xFF334155), RoundedCornerShape(8.dp))
-                                .clickable {
+                                .sizeIn(minWidth = 48.dp, minHeight = 48.dp)
+                                .clickable(role = Role.Button) {
                                     onAdjustDelta(delta)
-                                    sliderValue = (currentSpeedLimit + delta).toFloat().coerceIn(20f, 140f)
+                                    sliderValue = (currentSpeedLimit + delta).toFloat().coerceIn(20f, 160f)
                                 }
                                 .semantics {
-                                    contentDescription = if (delta > 0) "Tăng giới hạn $delta ${speedUnit.label}" else "Giảm giới hạn ${-delta} ${speedUnit.label}"
+                                    contentDescription = if (delta > 0) "Tăng giới hạn $delta km/h" else "Giảm giới hạn ${-delta} km/h"
                                 }
                                 .padding(horizontal = 10.dp, vertical = 7.dp)
                         ) {
@@ -231,7 +237,7 @@ fun SpeedLimitAdjusterDialog(
                 Spacer(modifier = Modifier.height(6.dp))
 
                 FlowRow(
-                    modifier = Modifier.fillMaxWidth(),
+                    modifier = Modifier.fillMaxWidth().selectableGroup(),
                     horizontalArrangement = Arrangement.spacedBy(6.dp),
                     verticalArrangement = Arrangement.spacedBy(6.dp)
                 ) {
@@ -249,10 +255,12 @@ fun SpeedLimitAdjusterDialog(
                                     if (isSelected) Color(0xFFFF1744) else Color(0xFF1E293B),
                                     RoundedCornerShape(8.dp)
                                 )
-                                .clickable {
+                                .sizeIn(minWidth = 48.dp, minHeight = 48.dp)
+                                .selectable(selected = isSelected, role = Role.RadioButton, onClick = {
                                     onSetSpeedLimit(preset)
                                     sliderValue = preset.toFloat()
-                                }
+                                })
+                                .semantics { contentDescription = "Giới hạn $preset km/h" }
                                 .padding(horizontal = 12.dp, vertical = 6.dp)
                         ) {
                             Text(
@@ -280,7 +288,7 @@ fun SpeedLimitAdjusterDialog(
                 Spacer(modifier = Modifier.height(6.dp))
 
                 Row(
-                    modifier = Modifier.fillMaxWidth(),
+                    modifier = Modifier.fillMaxWidth().selectableGroup(),
                     horizontalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
                     listOf(
@@ -295,10 +303,9 @@ fun SpeedLimitAdjusterDialog(
                                 .clip(RoundedCornerShape(8.dp))
                                 .background(if (isSelected) Color(0xFF1A73E8).copy(alpha = 0.25f) else Color(0xFF131A29))
                                 .border(1.dp, if (isSelected) Color(0xFF1A73E8) else Color(0xFF1E293B), RoundedCornerShape(8.dp))
-                                .clickable { onSetBuffer(buf) }
-                                .semantics {
-                                    contentDescription = "Dung sai cảnh báo: $label"
-                                }
+                                .sizeIn(minHeight = 48.dp)
+                                .selectable(selected = isSelected, role = Role.RadioButton, onClick = { onSetBuffer(buf) })
+                                .semantics { contentDescription = "Dung sai cảnh báo: $buf km/h" }
                                 .padding(vertical = 8.dp),
                             contentAlignment = Alignment.Center
                         ) {
@@ -335,6 +342,7 @@ fun SpeedLimitAdjusterDialog(
                         )
                     }
                     Switch(
+                        modifier = Modifier.semantics { contentDescription = "Rung phản hồi khi quá tốc" },
                         checked = isWarningEnabled,
                         onCheckedChange = { onToggleWarning() },
                         colors = SwitchDefaults.colors(

@@ -1,6 +1,12 @@
 package com.example.viewmodel
 
 import android.app.Application
+import android.os.SystemClock
+import com.example.model.RealHudState
+import com.example.model.realHudState
+import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.stateIn
+import kotlinx.coroutines.flow.SharingStarted
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.data.NavigationRepository
@@ -44,6 +50,7 @@ class HudViewModel(application: Application) : AndroidViewModel(application) {
     val musicState: StateFlow<BluetoothMusicState> = bluetoothController.musicState
     val isGpsActive: StateFlow<Boolean> = locationSpeedService.isGpsActive
     val gpsAccuracy: StateFlow<Float> = locationSpeedService.gpsAccuracy
+    val gpsReading = locationSpeedService.gpsReading
     val leanAngle: StateFlow<Float> = leanAngleSensor.leanAngleDegrees
     val maxLeftLean: StateFlow<Float> = leanAngleSensor.maxLeftLean
     val maxRightLean: StateFlow<Float> = leanAngleSensor.maxRightLean
@@ -52,8 +59,15 @@ class HudViewModel(application: Application) : AndroidViewModel(application) {
     val obdTelemetry: StateFlow<ObdTelemetry> = obdService.obdTelemetry
 
     // Telemetry Source: HUD_GPS vs HUD_OBD vs AUTO
-    private val _telemetrySource = MutableStateFlow(TelemetrySource.AUTO)
+    private val _telemetrySource = MutableStateFlow(TelemetrySource.HUD_GPS)
     val telemetrySource: StateFlow<TelemetrySource> = _telemetrySource.asStateFlow()
+
+    private val freshnessClock = MutableStateFlow(SystemClock.elapsedRealtime())
+    val realHud: StateFlow<RealHudState> = combine(
+        telemetrySource, obdTelemetry, locationSpeedService.gpsReading, freshnessClock
+    ) { source, obd, gps, now -> realHudState(source, obd, gps, now) }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), RealHudState())
+
 
     fun getCurrentCoordinates(): Pair<Double, Double> = locationSpeedService.getCurrentCoordinates()
 
@@ -122,98 +136,40 @@ class HudViewModel(application: Application) : AndroidViewModel(application) {
     private var currentSimSpeed = 0f
 
     init {
-        startTelemetryLoop()
-        startRealGpsTracking()
-        listenToObdUpdates()
-
-        // Welcome motorcycle HUD notification
         viewModelScope.launch {
-            delay(1500)
-            triggerSampleMessage(
-                sender = "Moto HUD System",
-                appSource = "Hệ Thống",
-                content = "Đang kích hoạt GPS vệ tinh thực tế & sẵn sàng kết nối cổng OBD-II!"
-            )
-        }
-    }
-
-    /**
-     * Starts continuous GPS hardware tracking using FusedLocationProviderClient.
-     */
-    fun startRealGpsTracking() {
-        leanAngleSensor.startListening()
-        locationSpeedService.startGpsUpdates { gpsSpeedKmh, bearing, alt, accuracy ->
-            if (!_isSimulationMode.value) {
-                val isObdActive = obdTelemetry.value.connectionState == ObdConnectionState.CONNECTED &&
-                        (_telemetrySource.value == TelemetrySource.HUD_OBD || _telemetrySource.value == TelemetrySource.AUTO)
-
-                val effectiveSpeed = if (isObdActive) obdTelemetry.value.speedKmh.toFloat() else gpsSpeedKmh
-                val limit = _telemetry.value.currentSpeedLimit
-                val buffer = _speedThresholdBuffer.value
-                val isOver = effectiveSpeed > (limit + buffer)
-
+            while (isActive) {
+                freshnessClock.value = SystemClock.elapsedRealtime()
+                val isOver = realHud.value.speedKmh?.let {
+                    it > (_telemetry.value.currentSpeedLimit + _speedThresholdBuffer.value)
+                } ?: false
                 if (isOver && !lastOverSpeedState && _speedWarningEnabled.value) {
                     HapticHelper.vibrateSpeedWarning(getApplication())
                 }
                 lastOverSpeedState = isOver
-
-                val gear = calculateGear(effectiveSpeed)
-                val rpm = if (isObdActive) obdTelemetry.value.rpm else calculateRpm(effectiveSpeed, gear)
-
-                val metersDelta = (effectiveSpeed * (1000f / 3600f) * 0.4f).toInt()
-                advanceNavMeters(metersDelta)
-
-                _telemetry.update { current ->
-                    current.copy(
-                        speedKmh = effectiveSpeed.coerceAtLeast(0f),
-                        compassHeadingDegrees = bearing,
-                        altitudeMeters = alt,
-                        gear = gear,
-                        rpm = rpm,
-                        isOverSpeed = isOver,
-                        source = if (isObdActive) TelemetrySource.HUD_OBD else TelemetrySource.HUD_GPS,
-                        gpsAccuracyMeters = accuracy
+                _telemetry.update { it.copy(isOverSpeed = isOver) }
+                delay(500)
+            }
+        }
+        viewModelScope.launch {
+            realHud.collect { reading ->
+                _telemetry.update {
+                    it.copy(
+                        speedKmh = reading.speedKmh ?: 0f,
+                        rpm = reading.rpm ?: 0,
+                        gear = "—", // Standard PIDs here do not report the current gear.
+                        source = reading.mode
                     )
                 }
             }
         }
+        startTelemetryLoop()
+        startRealGpsTracking()
     }
 
-    /**
-     * Listens to live vehicle ECU data received via Bluetooth OBD-II adapter.
-     */
-    private fun listenToObdUpdates() {
-        viewModelScope.launch {
-            obdService.obdTelemetry.collect { obd ->
-                if (!_isSimulationMode.value && obd.connectionState == ObdConnectionState.CONNECTED &&
-                    (_telemetrySource.value == TelemetrySource.HUD_OBD || _telemetrySource.value == TelemetrySource.AUTO)
-                ) {
-                    val speed = obd.speedKmh.toFloat()
-                    val limit = _telemetry.value.currentSpeedLimit
-                    val buffer = _speedThresholdBuffer.value
-                    val isOver = speed > (limit + buffer)
-
-                    if (isOver && !lastOverSpeedState && _speedWarningEnabled.value) {
-                        HapticHelper.vibrateSpeedWarning(getApplication())
-                    }
-                    lastOverSpeedState = isOver
-
-                    val gear = calculateGear(speed)
-                    _telemetry.update {
-                        it.copy(
-                            speedKmh = speed,
-                            rpm = obd.rpm,
-                            gear = gear,
-                            coolantTempC = obd.coolantTempC,
-                            batteryVoltage = obd.batteryVoltage,
-                            throttlePercent = obd.throttlePercent,
-                            isOverSpeed = isOver,
-                            source = TelemetrySource.HUD_OBD
-                        )
-                    }
-                }
-            }
-        }
+    fun startRealGpsTracking() {
+        leanAngleSensor.startListening()
+        // LocationSpeedService publishes nullable measured values to realHud.
+        locationSpeedService.startGpsUpdates { _, _, _, _ -> }
     }
 
     private fun startTelemetryLoop() {

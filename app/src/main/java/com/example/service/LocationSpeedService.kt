@@ -3,6 +3,8 @@ package com.example.service
 import android.annotation.SuppressLint
 import android.content.Context
 import android.location.Location
+import android.os.SystemClock
+import com.example.model.GpsReading
 import android.os.Looper
 import com.google.android.gms.location.FusedLocationProviderClient
 import com.google.android.gms.location.LocationCallback
@@ -28,6 +30,9 @@ class LocationSpeedService(private val context: Context) {
     private val _gpsAccuracy = MutableStateFlow(0f)
     val gpsAccuracy: StateFlow<Float> = _gpsAccuracy.asStateFlow()
 
+    private val _gpsReading = MutableStateFlow(GpsReading())
+    val gpsReading: StateFlow<GpsReading> = _gpsReading.asStateFlow()
+
     private var locationCallback: LocationCallback? = null
 
     @SuppressLint("MissingPermission")
@@ -41,14 +46,28 @@ class LocationSpeedService(private val context: Context) {
         locationCallback = object : LocationCallback() {
             override fun onLocationResult(result: LocationResult) {
                 val loc = result.lastLocation ?: return
+                // Ignore cached/mock fixes in the real HUD.
+                @Suppress("DEPRECATION")
+                if (loc.isFromMockProvider) return
+                val fixTimeMs = loc.elapsedRealtimeNanos / 1_000_000L
+                if (!com.example.model.isFreshReading(fixTimeMs, SystemClock.elapsedRealtime())) return
                 _realLocation.value = loc
+                _gpsReading.value = GpsReading(
+                    receivedAtMs = fixTimeMs,
+                    speedKmh = if (loc.hasSpeed()) loc.speed * 3.6f else null,
+                    bearingDegrees = if (loc.hasBearing()) loc.bearing else null,
+                    altitudeMeters = if (loc.hasAltitude()) loc.altitude else null,
+                    accuracyMeters = if (loc.hasAccuracy()) loc.accuracy else null,
+                    latitude = loc.latitude,
+                    longitude = loc.longitude
+                )
                 _isGpsActive.value = true
                 _gpsAccuracy.value = loc.accuracy
 
                 // Location.speed is in meters/second. 1 m/s = 3.6 km/h
                 val speedKmh = if (loc.hasSpeed()) (loc.speed * 3.6f) else 0f
                 val bearing = if (loc.hasBearing()) loc.bearing else 0f
-                val altitude = if (loc.hasAltitude()) loc.altitude.toFloat() else 15f
+                val altitude = if (loc.hasAltitude()) loc.altitude.toFloat() else 0f
                 val accuracy = loc.accuracy
 
                 onLocation(speedKmh, bearing, altitude, accuracy)
@@ -61,7 +80,6 @@ class LocationSpeedService(private val context: Context) {
                 locationCallback!!,
                 Looper.getMainLooper()
             )
-            _isGpsActive.value = true
         } catch (_: SecurityException) {
             _isGpsActive.value = false
         } catch (_: Exception) {
@@ -75,6 +93,7 @@ class LocationSpeedService(private val context: Context) {
             locationCallback = null
         }
         _isGpsActive.value = false
+        _gpsReading.value = GpsReading()
     }
 
     fun getCurrentCoordinates(defaultLat: Double = 10.7769, defaultLng: Double = 106.7009): Pair<Double, Double> {

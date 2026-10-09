@@ -6,6 +6,7 @@ import android.bluetooth.BluetoothDevice
 import android.bluetooth.BluetoothManager
 import android.bluetooth.BluetoothSocket
 import android.content.Context
+import android.os.SystemClock
 import com.example.model.BluetoothDeviceInfo
 import com.example.model.ObdConnectionState
 import com.example.model.ObdTelemetry
@@ -19,6 +20,8 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.isActive
+import kotlinx.coroutines.currentCoroutineContext
+import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.io.InputStream
@@ -153,9 +156,9 @@ class ObdBluetoothService(private val context: Context) {
         sendCommand("ATSP0") // Auto detect vehicle protocol
         delay(300)
         val voltageRaw = sendCommand("ATRV") // Read real battery voltage
-        val cleanVoltage = voltageRaw.filter { it.isDigit() || it == '.' || it == 'V' || it == 'v' }.trim()
-        if (cleanVoltage.isNotBlank()) {
-            _obdTelemetry.update { it.copy(batteryVoltage = cleanVoltage) }
+        val cleanVoltage = parseVoltage(voltageRaw)
+        if (cleanVoltage != null) {
+            _obdTelemetry.update { it.copy(batteryVoltage = cleanVoltage, voltageUpdatedAtMs = SystemClock.elapsedRealtime()) }
         }
     }
 
@@ -164,51 +167,35 @@ class ObdBluetoothService(private val context: Context) {
      */
     private suspend fun pollEcuLoop() {
         var tickCounter = 0
-        while (communicationJob?.isActive == true) {
-            // High frequency: Speed (PID 010D) & RPM (PID 010C)
-            val speedRaw = sendCommand("010D")
-            val parsedSpeed = parseSpeedPid(speedRaw)
-
-            val rpmRaw = sendCommand("010C")
-            val parsedRpm = parseRpmPid(rpmRaw)
-
+        while (currentCoroutineContext().isActive) {
+            // Publish each valid PID immediately. Invalid replies do not renew its freshness.
+            parseSpeedPid(sendCommand("010D"))?.let { value ->
+                _obdTelemetry.update { it.copy(speedKmh = value, speedUpdatedAtMs = SystemClock.elapsedRealtime(), lastUpdateMs = System.currentTimeMillis()) }
+            }
+            parseRpmPid(sendCommand("010C"))?.let { value ->
+                _obdTelemetry.update { it.copy(rpm = value, rpmUpdatedAtMs = SystemClock.elapsedRealtime()) }
+            }
             tickCounter++
-
-            // Lower frequency: Coolant Temp, Throttle, Voltage every 5-10 ticks
-            var coolant = _obdTelemetry.value.coolantTempC
-            var throttle = _obdTelemetry.value.throttlePercent
-            var voltage = _obdTelemetry.value.batteryVoltage
-
             if (tickCounter % 5 == 0) {
-                val coolantRaw = sendCommand("0105")
-                val parsedCoolant = parseCoolantTempPid(coolantRaw)
-                if (parsedCoolant != null) coolant = parsedCoolant
-
-                val throttleRaw = sendCommand("0111")
-                val parsedThrottle = parseThrottlePid(throttleRaw)
-                if (parsedThrottle != null) throttle = parsedThrottle
+                parseCoolantTempPid(sendCommand("0105"))?.let { value ->
+                    _obdTelemetry.update { it.copy(coolantTempC = value, coolantUpdatedAtMs = SystemClock.elapsedRealtime()) }
+                }
+                parseThrottlePid(sendCommand("0111"))?.let { value ->
+                    _obdTelemetry.update { it.copy(throttlePercent = value, throttleUpdatedAtMs = SystemClock.elapsedRealtime()) }
+                }
             }
-
             if (tickCounter % 15 == 0) {
-                val voltRaw = sendCommand("ATRV")
-                val cleanVolt = voltRaw.filter { it.isDigit() || it == '.' || it == 'V' || it == 'v' }.trim()
-                if (cleanVolt.isNotBlank()) voltage = cleanVolt
+                parseVoltage(sendCommand("ATRV"))?.let { value ->
+                    _obdTelemetry.update { it.copy(batteryVoltage = value, voltageUpdatedAtMs = SystemClock.elapsedRealtime()) }
+                }
             }
-
-            _obdTelemetry.update { current ->
-                current.copy(
-                    speedKmh = parsedSpeed ?: current.speedKmh,
-                    rpm = parsedRpm ?: current.rpm,
-                    coolantTempC = coolant,
-                    throttlePercent = throttle,
-                    batteryVoltage = voltage,
-                    lastUpdateMs = System.currentTimeMillis()
-                )
-            }
-
-            delay(150) // ~6-7 queries per second
+            delay(150)
         }
     }
+
+    private fun parseVoltage(raw: String): String? =
+        Regex("""^(\d{1,2}(?:\.\d+)?)\s*[Vv]$""").matchEntire(raw.trim())
+            ?.groupValues?.get(1)?.toFloatOrNull()?.takeIf { it in 0f..30f }?.let { "${it}V" }
 
     /**
      * Sends an AT or OBD command string and waits for response terminating in '>'
@@ -234,7 +221,10 @@ class ObdBluetoothService(private val context: Context) {
                     delay(15)
                 }
             }
+            currentCoroutineContext().ensureActive()
             buffer.toString().trim()
+        } catch (e: CancellationException) {
+            throw e
         } catch (_: Exception) {
             ""
         }
@@ -303,13 +293,7 @@ class ObdBluetoothService(private val context: Context) {
         communicationJob?.cancel()
         communicationJob = null
         closeStreams()
-        _obdTelemetry.update {
-            it.copy(
-                connectionState = ObdConnectionState.DISCONNECTED,
-                connectedDeviceName = "",
-                connectedDeviceAddress = ""
-            )
-        }
+        _obdTelemetry.value = ObdTelemetry()
     }
 
     private fun closeStreams() {

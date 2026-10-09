@@ -43,7 +43,7 @@ class MainActivity : ComponentActivity() {
                 val fineLocationGranted = permissions[Manifest.permission.ACCESS_FINE_LOCATION] ?: false
                 val coarseLocationGranted = permissions[Manifest.permission.ACCESS_COARSE_LOCATION] ?: false
                 if (fineLocationGranted || coarseLocationGranted) {
-                    // Location granted, user can switch between Live GPS and Simulation mode
+                    viewModel.startRealGpsTracking()
                 }
             }
 

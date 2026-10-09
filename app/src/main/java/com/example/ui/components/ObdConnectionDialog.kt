@@ -10,6 +10,9 @@ import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.selection.selectable
+import androidx.compose.foundation.selection.selectableGroup
+import androidx.compose.ui.semantics.Role
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -163,10 +166,10 @@ fun ObdConnectionDialog(
                 Spacer(modifier = Modifier.height(8.dp))
 
                 Row(
-                    modifier = Modifier.fillMaxWidth(),
+                    modifier = Modifier.fillMaxWidth().selectableGroup(),
                     horizontalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
-                    TelemetrySource.entries.forEach { src ->
+                    listOf(TelemetrySource.HUD_OBD, TelemetrySource.HUD_GPS).forEach { src ->
                         val isSelected = telemetrySource == src
                         Box(
                             modifier = Modifier
@@ -181,7 +184,7 @@ fun ObdConnectionDialog(
                                     if (isSelected) colorTheme.primaryColor else Color(0xFF334155),
                                     RoundedCornerShape(10.dp)
                                 )
-                                .clickable { onSelectSource(src) }
+                                .selectable(selected = isSelected, role = Role.RadioButton, onClick = { onSelectSource(src) })
                                 .padding(vertical = 10.dp, horizontal = 4.dp),
                             contentAlignment = Alignment.Center
                         ) {
@@ -238,7 +241,7 @@ fun ObdConnectionDialog(
                                     text = if (telemetrySource == TelemetrySource.HUD_OBD || (telemetrySource == TelemetrySource.AUTO && obdTelemetry.connectionState == ObdConnectionState.CONNECTED)) {
                                         "TRẠNG THÁI OBD: ${obdTelemetry.connectionState.title}"
                                     } else {
-                                        "TRẠNG THÁI GPS: ${if (isGpsActive) "ĐANG ĐỌC VỆ TINH (THẬT)" else "ĐANG KẾT NỐI VỆ TINH"}"
+                                        "TRẠNG THÁI GPS: ${if (isGpsActive) "ĐÃ CÓ VỊ TRÍ MỚI" else "CHƯA CÓ VỊ TRÍ MỚI"}"
                                     },
                                     color = Color.White,
                                     fontSize = 12.sp,
@@ -248,7 +251,7 @@ fun ObdConnectionDialog(
                             }
                         }
 
-                        if (isGpsActive) {
+                        if (isGpsActive && gpsAccuracyMeters.isFinite()) {
                             Spacer(modifier = Modifier.height(4.dp))
                             Text(
                                 text = "• GPS Hardware: FusedLocationProviderClient (Độ chính xác: ±${gpsAccuracyMeters.toInt()}m)",
@@ -278,70 +281,6 @@ fun ObdConnectionDialog(
                 }
 
                 Spacer(modifier = Modifier.height(16.dp))
-
-                // OBD Live Metrics Preview Panel
-                if (obdTelemetry.connectionState == ObdConnectionState.CONNECTED) {
-                    Text(
-                        text = "THÔNG SỐ ECU XE THỰC TẾ (OBD-II)",
-                        color = Color(0xFF00E676),
-                        fontSize = 11.sp,
-                        fontWeight = FontWeight.Bold,
-                        fontFamily = FontFamily.Monospace
-                    )
-                    Spacer(modifier = Modifier.height(8.dp))
-
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(8.dp)
-                    ) {
-                        ObdMetricCard(
-                            label = "TỐC ĐỘ ECU",
-                            value = "${obdTelemetry.speedKmh} km/h",
-                            color = colorTheme.primaryColor,
-                            modifier = Modifier.weight(1f)
-                        )
-                        ObdMetricCard(
-                            label = "VÒNG TUA RPM",
-                            value = "${obdTelemetry.rpm}",
-                            color = colorTheme.accentColor,
-                            modifier = Modifier.weight(1f)
-                        )
-                        ObdMetricCard(
-                            label = "NHIỆT ĐỘ NƯỚC",
-                            value = "${obdTelemetry.coolantTempC}°C",
-                            color = if (obdTelemetry.coolantTempC > 105) Color(0xFFFF5252) else Color(0xFF00E676),
-                            modifier = Modifier.weight(1f)
-                        )
-                    }
-
-                    Spacer(modifier = Modifier.height(8.dp))
-
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(8.dp)
-                    ) {
-                        ObdMetricCard(
-                            label = "ĐIỆN ÁP ẮC QUY",
-                            value = obdTelemetry.batteryVoltage,
-                            color = colorTheme.primaryColor,
-                            modifier = Modifier.weight(1f)
-                        )
-                        ObdMetricCard(
-                            label = "BƯỚM GA",
-                            value = "${obdTelemetry.throttlePercent.toInt()}%",
-                            color = colorTheme.accentColor,
-                            modifier = Modifier.weight(1f)
-                        )
-                        ObdMetricCard(
-                            label = "GIAO THỨC",
-                            value = "CAN 500K",
-                            color = Color(0xFF94A3B8),
-                            modifier = Modifier.weight(1f)
-                        )
-                    }
-
-                    Spacer(modifier = Modifier.height(16.dp))
-                }
 
                 // Bluetooth OBD Device Connection Section
                 Row(
