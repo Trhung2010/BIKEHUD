@@ -414,7 +414,7 @@ fun HudQuickSettingsDialog(
                 if (onOpenObdDialog != null) {
                     Text(
                         text = "CỔNG OBD-II & GPS VỆ TINH",
-                        color = colorTheme.accentColor,
+                        color = currentTheme.secondaryColor,
                         fontSize = 12.sp,
                         fontWeight = FontWeight.Bold,
                         fontFamily = FontFamily.Monospace
@@ -425,7 +425,7 @@ fun HudQuickSettingsDialog(
                             .fillMaxWidth()
                             .clip(RoundedCornerShape(10.dp))
                             .background(Color(0xFF0F233A))
-                            .border(1.dp, colorTheme.primaryColor.copy(alpha = 0.6f), RoundedCornerShape(10.dp))
+                            .border(1.dp, currentTheme.primaryColor.copy(alpha = 0.6f), RoundedCornerShape(10.dp))
                             .clickable {
                                 onDismiss()
                                 onOpenObdDialog()
@@ -443,13 +443,13 @@ fun HudQuickSettingsDialog(
                                     modifier = Modifier
                                         .size(32.dp)
                                         .clip(CircleShape)
-                                        .background(colorTheme.primaryColor.copy(alpha = 0.25f)),
+                                        .background(currentTheme.primaryColor.copy(alpha = 0.25f)),
                                     contentAlignment = Alignment.Center
                                 ) {
                                     Icon(
                                         imageVector = Icons.Default.Speed,
                                         contentDescription = null,
-                                        tint = colorTheme.primaryColor,
+                                        tint = currentTheme.primaryColor,
                                         modifier = Modifier.size(18.dp)
                                     )
                                 }
@@ -470,7 +470,7 @@ fun HudQuickSettingsDialog(
                             }
                             Text(
                                 text = "MỞ >",
-                                color = colorTheme.primaryColor,
+                                color = currentTheme.primaryColor,
                                 fontSize = 12.sp,
                                 fontWeight = FontWeight.Bold,
                                 fontFamily = FontFamily.Monospace

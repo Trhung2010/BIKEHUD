@@ -32,6 +32,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -114,6 +116,9 @@ fun HudTopBar(
                     .background(Color(0xFF1E293B).copy(alpha = 0.8f))
                     .border(1.dp, colorTheme.primaryColor.copy(alpha = 0.4f), RoundedCornerShape(6.dp))
                     .clickable { onToggleUnit() }
+                    .semantics {
+                        contentDescription = "Đơn vị tốc độ: ${speedUnit.label}"
+                    }
                     .padding(horizontal = 8.dp, vertical = 4.dp)
                     .testTag("unit_toggle_button")
             ) {
@@ -136,6 +141,9 @@ fun HudTopBar(
                         if (onOpenSpeedLimitDialog != null) Modifier.clickable { onOpenSpeedLimitDialog() }
                         else Modifier
                     )
+                    .semantics {
+                        contentDescription = "Giới hạn tốc độ cảnh báo: tối đa $currentSpeedLimit ${speedUnit.label}"
+                    }
                     .padding(horizontal = 7.dp, vertical = 4.dp)
                     .testTag("topbar_speed_limit_button")
             ) {
@@ -210,6 +218,9 @@ fun HudTopBar(
                     .clickable {
                         if (onOpenObdDialog != null) onOpenObdDialog() else onToggleSim()
                     }
+                    .semantics {
+                        contentDescription = "Nguồn định vị và tốc độ: ${if (isSimulationMode) "Chế độ mô phỏng" else telemetrySource.badgeText}"
+                    }
                     .padding(horizontal = 8.dp, vertical = 4.dp)
                     .testTag("telemetry_source_button")
             ) {
@@ -255,6 +266,9 @@ fun HudTopBar(
                         .clip(RoundedCornerShape(6.dp))
                         .background(Color(0xFFFF1744))
                         .clickable { onOpenSosDialog() }
+                        .semantics {
+                            contentDescription = "Cứu hộ khẩn cấp SOS"
+                        }
                         .padding(horizontal = 8.dp, vertical = 5.dp)
                         .testTag("topbar_sos_button")
                 ) {
