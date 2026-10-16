@@ -135,4 +135,76 @@ class ExampleRobolectricTest {
         assertTrue(sosMsg.contains("10.776889"))
         assertTrue(sosMsg.contains("106.700806"))
     }
+
+    @Test
+    fun `test OBD-II PID parsing for speed RPM coolant and throttle`() {
+        val application = ApplicationProvider.getApplicationContext<android.app.Application>()
+        val obdService = com.example.service.ObdBluetoothService(application)
+
+        // PID 010D: Speed "41 0D 32" -> 0x32 = 50 km/h
+        val parsedSpeed = obdService.parseSpeedPid("41 0D 32\r>")
+        assertEquals(50, parsedSpeed)
+
+        // PID 010C: RPM "41 0C 1A F8" -> ((0x1A * 256) + 0xF8) / 4 = ((26 * 256) + 248) / 4 = 6904 / 4 = 1726 RPM
+        val parsedRpm = obdService.parseRpmPid("41 0C 1A F8\r>")
+        assertEquals(1726, parsedRpm)
+
+        // PID 0105: Coolant Temp "41 05 5A" -> 0x5A - 40 = 90 - 40 = 50 °C
+        val parsedCoolant = obdService.parseCoolantTempPid("41 05 5A\r>")
+        assertEquals(50, parsedCoolant)
+
+        // PID 0111: Throttle "41 11 80" -> 128 * 100 / 255 = ~50.19%
+        val parsedThrottle = obdService.parseThrottlePid("41 11 80\r>")
+        assertNotNull(parsedThrottle)
+        assertTrue(parsedThrottle!! in 50f..51f)
+    }
+
+    @Test
+    fun `test BluetoothAudioController MediaController fallback and track switching`() {
+        val application = ApplicationProvider.getApplicationContext<android.app.Application>()
+        val audioController = com.example.service.BluetoothAudioController(application)
+
+        val initialTrack = audioController.musicState.value.trackTitle
+        val initialPlaying = audioController.musicState.value.isPlaying
+
+        // Toggle play/pause
+        audioController.togglePlayPause()
+        assertEquals(!initialPlaying, audioController.musicState.value.isPlaying)
+
+        // Next track
+        audioController.nextTrack()
+        assertTrue(audioController.musicState.value.trackTitle.isNotBlank())
+
+        // Prev track
+        audioController.previousTrack()
+        assertTrue(audioController.musicState.value.trackTitle.isNotBlank())
+    }
+
+    @Test
+    fun `test route waypoints and upcoming turn-by-turn step selection`() {
+        val application = ApplicationProvider.getApplicationContext<android.app.Application>()
+        val viewModel = com.example.viewmodel.HudViewModel(application)
+
+        val route = viewModel.currentRoute.value
+        assertNotNull(route)
+        assertTrue(route.steps.isNotEmpty())
+        assertTrue(route.waypoints.isNotEmpty())
+        assertTrue(route.startLat > 0)
+        assertTrue(route.startLng > 0)
+
+        // Initial step is 0
+        assertEquals(0, viewModel.currentStepIndex.value)
+        val firstStep = route.steps[0]
+        assertEquals(firstStep.distanceMeters, viewModel.stepRemainingDistance.value)
+
+        // Select next step
+        viewModel.nextStep()
+        assertEquals(1, viewModel.currentStepIndex.value)
+        assertEquals(route.steps[1].distanceMeters, viewModel.stepRemainingDistance.value)
+
+        // Select specific step
+        viewModel.selectStep(3)
+        assertEquals(3, viewModel.currentStepIndex.value)
+        assertEquals(route.steps[3].distanceMeters, viewModel.stepRemainingDistance.value)
+    }
 }

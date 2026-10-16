@@ -126,8 +126,26 @@ fun MusicHudControl(
                 )
             }
 
-            // Battery and Volume indicator
+            // Battery, MediaController status, and Volume indicator
             Row(verticalAlignment = Alignment.CenterVertically) {
+                if (musicState.isMediaControllerActive) {
+                    Box(
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(4.dp))
+                            .background(Color(0xFF10B981).copy(alpha = 0.25f))
+                            .border(1.dp, Color(0xFF10B981), RoundedCornerShape(4.dp))
+                            .padding(horizontal = 4.dp, vertical = 2.dp)
+                    ) {
+                        Text(
+                            text = "MEDIA SYNC",
+                            color = Color(0xFF34D399),
+                            fontSize = 8.sp,
+                            fontWeight = FontWeight.Bold,
+                            fontFamily = FontFamily.Monospace
+                        )
+                    }
+                    Spacer(modifier = Modifier.width(6.dp))
+                }
                 if (musicState.isConnected) {
                     Icon(
                         imageVector = Icons.Default.BatteryChargingFull,

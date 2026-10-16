@@ -32,6 +32,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Flip
 import androidx.compose.material.icons.filled.Navigation
+import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Scaffold
@@ -101,12 +102,14 @@ fun HudMainScreen(
     val obdTelemetry by viewModel.obdTelemetry.collectAsStateWithLifecycle()
     val isGpsActive by viewModel.isGpsActive.collectAsStateWithLifecycle()
     val gpsAccuracy by viewModel.gpsAccuracy.collectAsStateWithLifecycle()
+    val realLocation by viewModel.realLocation.collectAsStateWithLifecycle()
 
     var showSettingsDialog by remember { mutableStateOf(false) }
     var showSearchDialog by remember { mutableStateOf(false) }
     var showSpeedLimitDialog by remember { mutableStateOf(false) }
     var showSosDialog by remember { mutableStateOf(false) }
     var showObdDialog by remember { mutableStateOf(false) }
+    var isMapExpanded by remember { mutableStateOf(false) }
     var pairedDevices by remember { mutableStateOf<List<BluetoothDeviceInfo>>(emptyList()) }
 
     androidx.compose.runtime.LaunchedEffect(showObdDialog) {
@@ -274,6 +277,10 @@ fun HudMainScreen(
                                 navDisplayMode = navDisplayMode,
                                 musicState = musicState,
                                 telemetrySource = telemetrySource,
+                                currentLocation = realLocation,
+                                isGpsActive = isGpsActive,
+                                gpsAccuracy = gpsAccuracy,
+                                onSelectStep = { idx -> viewModel.selectStep(idx) },
                                 onToggleMirror = { viewModel.toggleMirrorMode() },
                                 onToggleNight = { viewModel.toggleNightMode() },
                                 onToggleUnit = { viewModel.toggleSpeedUnit() },
@@ -322,64 +329,42 @@ fun HudMainScreen(
                                     modifier = Modifier.fillMaxWidth()
                                 )
 
-                                // Mode switcher buttons in Portrait
+                                // Clean Map Destination & Search Bar outside the map frame
                                 Row(
-                                    modifier = Modifier.fillMaxWidth(),
-                                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(horizontal = 2.dp),
+                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                    verticalAlignment = Alignment.CenterVertically
                                 ) {
-                                    Box(
+                                    Row(
+                                        verticalAlignment = Alignment.CenterVertically,
                                         modifier = Modifier
                                             .weight(1f)
                                             .clip(RoundedCornerShape(8.dp))
-                                            .background(
-                                                if (navDisplayMode == NavDisplayMode.VECTOR_HUD) colorTheme.primaryColor.copy(alpha = 0.2f)
-                                                else Color(0xFF1E293B)
-                                            )
-                                            .border(
-                                                1.dp,
-                                                if (navDisplayMode == NavDisplayMode.VECTOR_HUD) colorTheme.primaryColor else Color(0xFF334155),
-                                                RoundedCornerShape(8.dp)
-                                            )
-                                            .clickable { viewModel.setNavDisplayMode(NavDisplayMode.VECTOR_HUD) }
-                                            .padding(vertical = 6.dp),
-                                        contentAlignment = Alignment.Center
+                                            .background(Color(0xFF0F172A))
+                                            .clickable { showSearchDialog = true }
+                                            .padding(horizontal = 10.dp, vertical = 6.dp)
                                     ) {
+                                        Icon(
+                                            imageVector = Icons.Default.Search,
+                                            contentDescription = "Tìm đường",
+                                            tint = colorTheme.accentColor,
+                                            modifier = Modifier.size(15.dp)
+                                        )
+                                        Spacer(modifier = Modifier.width(6.dp))
                                         Text(
-                                            text = "HUD CHỈ ĐƯỜNG",
-                                            color = if (navDisplayMode == NavDisplayMode.VECTOR_HUD) colorTheme.primaryColor else Color(0xFF94A3B8),
-                                            fontSize = 11.sp,
+                                            text = currentRoute.destination,
+                                            color = Color.White,
+                                            fontSize = 12.sp,
                                             fontWeight = FontWeight.Bold,
-                                            fontFamily = FontFamily.Monospace
+                                            maxLines = 1
                                         )
                                     }
 
-                                    Box(
-                                        modifier = Modifier
-                                            .weight(1f)
-                                            .clip(RoundedCornerShape(8.dp))
-                                            .background(
-                                                if (navDisplayMode == NavDisplayMode.GOOGLE_MAPS) Color(0xFF1A73E8).copy(alpha = 0.25f)
-                                                else Color(0xFF1E293B)
-                                            )
-                                            .border(
-                                                1.dp,
-                                                if (navDisplayMode == NavDisplayMode.GOOGLE_MAPS) Color(0xFF1A73E8) else Color(0xFF334155),
-                                                RoundedCornerShape(8.dp)
-                                            )
-                                            .clickable { viewModel.setNavDisplayMode(NavDisplayMode.GOOGLE_MAPS) }
-                                            .padding(vertical = 6.dp),
-                                        contentAlignment = Alignment.Center
-                                    ) {
-                                        Text(
-                                            text = "GOOGLE MAPS HUD",
-                                            color = if (navDisplayMode == NavDisplayMode.GOOGLE_MAPS) Color(0xFF64B5F6) else Color(0xFF94A3B8),
-                                            fontSize = 11.sp,
-                                            fontWeight = FontWeight.Bold,
-                                            fontFamily = FontFamily.Monospace
-                                        )
-                                    }
+                                    Spacer(modifier = Modifier.width(8.dp))
 
-                                    // Quick SOS emergency button for motorcyclist with gloves
+                                    // Quick SOS
                                     Box(
                                         modifier = Modifier
                                             .clip(RoundedCornerShape(8.dp))
@@ -399,30 +384,29 @@ fun HudMainScreen(
                                     }
                                 }
 
-                                if (navDisplayMode == NavDisplayMode.VECTOR_HUD) {
-                                    NavigationHudView(
-                                        route = currentRoute,
-                                        currentStep = currentStep,
-                                        stepIndex = currentStepIndex,
-                                        totalSteps = currentRoute.steps.size,
-                                        remainingMeters = remainingMeters,
-                                        compassHeading = telemetry.compassHeadingDegrees,
-                                        colorTheme = colorTheme,
-                                        onToggleToGoogleMaps = { viewModel.toggleNavDisplayMode() },
-                                        modifier = Modifier.fillMaxWidth()
-                                    )
-                                } else {
-                                    GoogleMapHudView(
-                                        route = currentRoute,
-                                        compassHeading = telemetry.compassHeadingDegrees,
-                                        speedKmh = telemetry.speedKmh,
-                                        colorTheme = colorTheme,
-                                        onOpenSearch = { showSearchDialog = true },
-                                        modifier = Modifier
-                                            .fillMaxWidth()
-                                            .height(280.dp)
-                                    )
-                                }
+                                // CONSOLIDATED BUILT-IN GOOGLE MAPS BLOCK (EDGE-TO-EDGE REAL MAP)
+                                GoogleMapHudView(
+                                    route = currentRoute,
+                                    currentStep = currentStep,
+                                    stepIndex = currentStepIndex,
+                                    totalSteps = currentRoute.steps.size,
+                                    remainingMeters = remainingMeters,
+                                    compassHeading = telemetry.compassHeadingDegrees,
+                                    speedKmh = telemetry.speedKmh,
+                                    currentLocation = realLocation,
+                                    isGpsActive = isGpsActive,
+                                    gpsAccuracy = gpsAccuracy,
+                                    colorTheme = colorTheme,
+                                    onOpenSearch = { showSearchDialog = true },
+                                    onSelectStep = { idx -> viewModel.selectStep(idx) },
+                                    onOpenSos = { showSosDialog = true },
+                                    isExpanded = isMapExpanded,
+                                    onToggleExpand = { isMapExpanded = !isMapExpanded },
+                                    isMirrored = isMirrorMode,
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .height(if (isMapExpanded) 620.dp else 480.dp)
+                                )
 
                                 MusicHudControl(
                                     musicState = musicState,

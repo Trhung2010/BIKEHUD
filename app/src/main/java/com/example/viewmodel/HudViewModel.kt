@@ -1,6 +1,7 @@
 package com.example.viewmodel
 
 import android.app.Application
+import android.location.Location
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.data.NavigationRepository
@@ -21,6 +22,7 @@ import com.example.model.TurnType
 import com.example.service.BluetoothAudioController
 import com.example.service.LeanAngleSensor
 import com.example.service.LocationSpeedService
+import com.example.service.MotoNotificationListenerService
 import com.example.service.ObdBluetoothService
 import com.example.util.EmergencySosHelper
 import com.example.util.HapticHelper
@@ -44,6 +46,7 @@ class HudViewModel(application: Application) : AndroidViewModel(application) {
     val musicState: StateFlow<BluetoothMusicState> = bluetoothController.musicState
     val isGpsActive: StateFlow<Boolean> = locationSpeedService.isGpsActive
     val gpsAccuracy: StateFlow<Float> = locationSpeedService.gpsAccuracy
+    val realLocation: StateFlow<Location?> = locationSpeedService.realLocation
     val leanAngle: StateFlow<Float> = leanAngleSensor.leanAngleDegrees
     val maxLeftLean: StateFlow<Float> = leanAngleSensor.maxLeftLean
     val maxRightLean: StateFlow<Float> = leanAngleSensor.maxRightLean
@@ -125,6 +128,15 @@ class HudViewModel(application: Application) : AndroidViewModel(application) {
         startTelemetryLoop()
         startRealGpsTracking()
         listenToObdUpdates()
+
+        // Hook incoming ride-safety notifications from active messaging apps
+        MotoNotificationListenerService.onIncomingMessageNotification = { sender, app, text ->
+            triggerSampleMessage(
+                sender = sender,
+                appSource = app,
+                content = text
+            )
+        }
 
         // Welcome motorcycle HUD notification
         viewModelScope.launch {
@@ -421,6 +433,29 @@ class HudViewModel(application: Application) : AndroidViewModel(application) {
         _currentRoute.value = route
         _currentStepIndex.value = 0
         _stepRemainingDistance.value = route.steps.firstOrNull()?.distanceMeters ?: 500
+    }
+
+    fun selectStep(index: Int) {
+        val steps = _currentRoute.value.steps
+        if (index in steps.indices) {
+            _currentStepIndex.value = index
+            _stepRemainingDistance.value = steps[index].distanceMeters
+        }
+    }
+
+    fun nextStep() {
+        val steps = _currentRoute.value.steps
+        val next = _currentStepIndex.value + 1
+        if (next < steps.size) {
+            selectStep(next)
+        }
+    }
+
+    fun previousStep() {
+        val prev = _currentStepIndex.value - 1
+        if (prev >= 0) {
+            selectStep(prev)
+        }
     }
 
     fun toggleNavDisplayMode() {

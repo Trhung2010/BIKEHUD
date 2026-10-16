@@ -13,6 +13,18 @@ object NavigationRepository {
             destination = "Landmark 81, Bình Thạnh",
             totalDistanceKm = 6.8f,
             estimatedTimeMinutes = 18,
+            startLat = 10.7720,
+            startLng = 106.6983,
+            destLat = 10.7951,
+            destLng = 106.7218,
+            waypoints = listOf(
+                10.7720 to 106.6983,
+                10.7760 to 106.7025,
+                10.7812 to 106.7075,
+                10.7850 to 106.7160,
+                10.7885 to 106.7190,
+                10.7951 to 106.7218
+            ),
             steps = listOf(
                 NavStep("Đi thẳng trên đường Lê Lợi", "Đường Lê Lợi", 350, TurnType.STRAIGHT, "Làn giữa xe máy"),
                 NavStep("Rẽ trái vào đường Đồng Khởi", "Đường Đồng Khởi", 500, TurnType.TURN_LEFT, "Chú ý đèn tín hiệu"),
@@ -30,6 +42,17 @@ object NavigationRepository {
             destination = "Cầu Nhật Tân, Tây Hồ, Hà Nội",
             totalDistanceKm = 12.5f,
             estimatedTimeMinutes = 26,
+            startLat = 21.0285,
+            startLng = 105.8542,
+            destLat = 21.0911,
+            destLng = 105.8189,
+            waypoints = listOf(
+                21.0285 to 105.8542,
+                21.0360 to 105.8570,
+                21.0520 to 105.8420,
+                21.0690 to 105.8300,
+                21.0911 to 105.8189
+            ),
             steps = listOf(
                 NavStep("Đi thẳng theo Phố Đinh Tiên Hoàng", "Phố Đinh Tiên Hoàng", 400, TurnType.STRAIGHT, "Tốc độ 40 km/h"),
                 NavStep("Rẽ phải vào Phố Hàng Vôi", "Phố Hàng Vôi", 600, TurnType.TURN_RIGHT, "Phố cổ chú ý người đi bộ"),
@@ -46,6 +69,17 @@ object NavigationRepository {
             destination = "Hải Vân Quan (Đỉnh đèo)",
             totalDistanceKm = 24.0f,
             estimatedTimeMinutes = 45,
+            startLat = 16.0750,
+            startLng = 108.2000,
+            destLat = 16.1950,
+            destLng = 108.1310,
+            waypoints = listOf(
+                16.0750 to 108.2000,
+                16.1050 to 108.1650,
+                16.1380 to 108.1450,
+                16.1700 to 108.1380,
+                16.1950 to 108.1310
+            ),
             steps = listOf(
                 NavStep("Đi thẳng trên Đường Nguyễn Tất Thành", "Đường Nguyễn Tất Thành", 4200, TurnType.STRAIGHT, "Cung đường biển"),
                 NavStep("Nhập vào Quốc Lộ 1A hướng Đèo", "Quốc Lộ 1A", 3500, TurnType.SLIGHT_LEFT, "Tránh xe tải lớn"),
@@ -62,6 +96,16 @@ object NavigationRepository {
             destination = "Chân Đèo Prenn, Đà Lạt",
             totalDistanceKm = 14.2f,
             estimatedTimeMinutes = 28,
+            startLat = 11.9404,
+            startLng = 108.4377,
+            destLat = 11.9020,
+            destLng = 108.4480,
+            waypoints = listOf(
+                11.9404 to 108.4377,
+                11.9310 to 108.4405,
+                11.9190 to 108.4435,
+                11.9020 to 108.4480
+            ),
             steps = listOf(
                 NavStep("Đi vòng qua Vòng xuyến Hồ Xuân Hương", "Vòng xuyến Thủy Tạ", 400, TurnType.ROUNDABOUT, "Lối ra thứ 2"),
                 NavStep("Vào Đường Ba Tháng Tư", "Đường 3 Tháng 4", 2300, TurnType.STRAIGHT, "Đường dốc thông reo"),

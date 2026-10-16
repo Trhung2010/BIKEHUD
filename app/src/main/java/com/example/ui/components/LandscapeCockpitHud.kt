@@ -1,5 +1,6 @@
 package com.example.ui.components
 
+import android.location.Location
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -67,6 +68,10 @@ fun LandscapeCockpitHud(
     navDisplayMode: NavDisplayMode,
     musicState: BluetoothMusicState,
     telemetrySource: TelemetrySource = TelemetrySource.AUTO,
+    currentLocation: Location? = null,
+    isGpsActive: Boolean = true,
+    gpsAccuracy: Float = 3f,
+    onSelectStep: ((Int) -> Unit)? = null,
     onToggleMirror: () -> Unit,
     onToggleNight: () -> Unit,
     onToggleUnit: () -> Unit,
@@ -132,116 +137,34 @@ fun LandscapeCockpitHud(
         }
 
         // -------------------------------------------------------------
-        // CENTER WING (Panel 2): NAVIGATION RADAR OR GOOGLE MAPS HUD
         // -------------------------------------------------------------
-        Column(
+        // CENTER WING (Panel 2): BUILT-IN REAL GOOGLE MAPS HUD
+        // -------------------------------------------------------------
+        Box(
             modifier = Modifier
-                .weight(1.2f)
-                .fillMaxHeight(),
-            verticalArrangement = Arrangement.SpaceBetween
+                .weight(1.35f)
+                .fillMaxHeight()
+                .clip(RoundedCornerShape(12.dp))
+                .border(1.dp, colorTheme.primaryColor.copy(alpha = 0.4f), RoundedCornerShape(12.dp))
         ) {
-            Box(
-                modifier = Modifier
-                    .weight(1f)
-                    .fillMaxWidth()
-            ) {
-                if (navDisplayMode == NavDisplayMode.VECTOR_HUD) {
-                    NavigationHudView(
-                        route = currentRoute,
-                        currentStep = currentStep,
-                        stepIndex = stepIndex,
-                        totalSteps = totalSteps,
-                        remainingMeters = remainingMeters,
-                        compassHeading = telemetry.compassHeadingDegrees,
-                        colorTheme = colorTheme,
-                        onToggleToGoogleMaps = onToggleNavMode,
-                        modifier = Modifier.fillMaxSize()
-                    )
-                } else {
-                    Column(modifier = Modifier.fillMaxSize()) {
-                        GoogleMapHudView(
-                            route = currentRoute,
-                            compassHeading = telemetry.compassHeadingDegrees,
-                            speedKmh = telemetry.speedKmh,
-                            colorTheme = colorTheme,
-                            onOpenSearch = onOpenSearch,
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .weight(1f)
-                        )
-                        Spacer(modifier = Modifier.height(4.dp))
-                        Box(
-                            modifier = Modifier
-                                .clip(RoundedCornerShape(6.dp))
-                                .background(Color(0xFF1E293B))
-                                .clickable { onToggleNavMode() }
-                                .padding(horizontal = 8.dp, vertical = 3.dp)
-                                .align(Alignment.End)
-                        ) {
-                            Row(verticalAlignment = Alignment.CenterVertically) {
-                                Icon(
-                                    imageVector = Icons.Default.Navigation,
-                                    contentDescription = null,
-                                    tint = colorTheme.primaryColor,
-                                    modifier = Modifier.size(12.dp)
-                                )
-                                Spacer(modifier = Modifier.width(4.dp))
-                                Text(
-                                    text = "VỀ HUD VECTOR",
-                                    color = colorTheme.primaryColor,
-                                    fontSize = 10.sp,
-                                    fontWeight = FontWeight.Bold,
-                                    fontFamily = FontFamily.Monospace
-                                )
-                            }
-                        }
-                    }
-                }
-            }
-
-            Spacer(modifier = Modifier.height(4.dp))
-
-            // Sub-nav quick action bar (Search Destination & Mode Switch)
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                // Search Destination Button
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    modifier = Modifier
-                        .clip(RoundedCornerShape(8.dp))
-                        .background(Color(0xFF111827).copy(alpha = 0.9f))
-                        .border(1.dp, colorTheme.primaryColor.copy(alpha = 0.4f), RoundedCornerShape(8.dp))
-                        .clickable { onOpenSearch() }
-                        .padding(horizontal = 8.dp, vertical = 4.dp)
-                ) {
-                    Icon(
-                        imageVector = Icons.Default.Search,
-                        contentDescription = "Tìm điểm đến",
-                        tint = colorTheme.accentColor,
-                        modifier = Modifier.size(14.dp)
-                    )
-                    Spacer(modifier = Modifier.width(6.dp))
-                    Text(
-                        text = "TÌM ĐỊA CHỈ GOOGLE MAPS",
-                        color = colorTheme.accentColor,
-                        fontSize = 10.sp,
-                        fontWeight = FontWeight.Bold,
-                        fontFamily = FontFamily.Monospace
-                    )
-                }
-
-                // Altitude and Trip duration mini badge
-                Text(
-                    text = "CAO ĐỘ: ${telemetry.altitudeMeters.toInt()}m",
-                    color = Color(0xFF64748B),
-                    fontSize = 10.sp,
-                    fontWeight = FontWeight.SemiBold,
-                    fontFamily = FontFamily.Monospace
-                )
-            }
+            GoogleMapHudView(
+                route = currentRoute,
+                currentStep = currentStep,
+                stepIndex = stepIndex,
+                totalSteps = totalSteps,
+                remainingMeters = remainingMeters,
+                compassHeading = telemetry.compassHeadingDegrees,
+                speedKmh = telemetry.speedKmh,
+                currentLocation = currentLocation,
+                isGpsActive = isGpsActive,
+                gpsAccuracy = gpsAccuracy,
+                colorTheme = colorTheme,
+                onOpenSearch = onOpenSearch,
+                onSelectStep = onSelectStep,
+                onOpenSos = onOpenSosDialog,
+                isMirrored = isMirrorMode,
+                modifier = Modifier.fillMaxSize()
+            )
         }
 
         // -------------------------------------------------------------

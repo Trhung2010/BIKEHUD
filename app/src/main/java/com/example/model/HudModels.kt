@@ -87,7 +87,12 @@ data class RoutePreset(
     val destination: String,
     val totalDistanceKm: Float,
     val estimatedTimeMinutes: Int,
-    val steps: List<NavStep>
+    val steps: List<NavStep>,
+    val startLat: Double = 10.7720,
+    val startLng: Double = 106.6983,
+    val destLat: Double = 10.7951,
+    val destLng: Double = 106.7218,
+    val waypoints: List<Pair<Double, Double>> = emptyList()
 )
 
 data class MessageNotification(
@@ -108,7 +113,9 @@ data class BluetoothMusicState(
     val artist: String = "Sơn Tùng M-TP",
     val volumeLevel: Float = 0.75f, // 0.0 to 1.0
     val progressMs: Long = 65000,
-    val durationMs: Long = 238000
+    val durationMs: Long = 238000,
+    val isMediaControllerActive: Boolean = false,
+    val mediaPackageName: String = ""
 )
 
 data class RideTelemetry(
