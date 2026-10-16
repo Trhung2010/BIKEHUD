@@ -164,6 +164,7 @@ class ObdBluetoothService(private val context: Context) {
      */
     private suspend fun pollEcuLoop() {
         var tickCounter = 0
+        var consecutiveFailures = 0
         while (communicationJob?.isActive == true) {
             // High frequency: Speed (PID 010D) & RPM (PID 010C)
             val speedRaw = sendCommand("010D")
@@ -171,6 +172,15 @@ class ObdBluetoothService(private val context: Context) {
 
             val rpmRaw = sendCommand("010C")
             val parsedRpm = parseRpmPid(rpmRaw)
+
+            if (speedRaw.isBlank() && rpmRaw.isBlank()) {
+                consecutiveFailures++
+                if (consecutiveFailures >= 5) {
+                    throw java.io.IOException("Mất tín hiệu truyền dữ liệu từ cổng OBD-II")
+                }
+            } else {
+                consecutiveFailures = 0
+            }
 
             tickCounter++
 
