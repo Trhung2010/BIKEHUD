@@ -207,4 +207,27 @@ class ExampleRobolectricTest {
         assertEquals(3, viewModel.currentStepIndex.value)
         assertEquals(route.steps[3].distanceMeters, viewModel.stepRemainingDistance.value)
     }
+
+    @Test
+    fun `test telemetry source switching behavior on OBD disconnect`() {
+        val application = ApplicationProvider.getApplicationContext<android.app.Application>()
+        val viewModel = HudViewModel(application)
+
+        assertEquals(com.example.model.TelemetrySource.HUD_GPS, viewModel.telemetry.value.source)
+
+        viewModel.setTelemetrySource(com.example.model.TelemetrySource.HUD_OBD)
+        assertEquals(com.example.model.TelemetrySource.HUD_OBD, viewModel.telemetrySource.value)
+    }
+
+    @Test
+    fun `test speed limit alert trigger with speed threshold buffer`() {
+        val application = ApplicationProvider.getApplicationContext<android.app.Application>()
+        val viewModel = HudViewModel(application)
+
+        viewModel.setSpeedLimit(50)
+        viewModel.setSpeedThresholdBuffer(5)
+        assertEquals(5, viewModel.speedThresholdBuffer.value)
+        assertEquals(50, viewModel.telemetry.value.currentSpeedLimit)
+        assertFalse(viewModel.telemetry.value.isOverSpeed)
+    }
 }

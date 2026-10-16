@@ -197,31 +197,43 @@ class HudViewModel(application: Application) : AndroidViewModel(application) {
     private fun listenToObdUpdates() {
         viewModelScope.launch {
             obdService.obdTelemetry.collect { obd ->
-                if (!_isSimulationMode.value && obd.connectionState == ObdConnectionState.CONNECTED &&
-                    (_telemetrySource.value == TelemetrySource.HUD_OBD || _telemetrySource.value == TelemetrySource.AUTO)
-                ) {
-                    val speed = obd.speedKmh.toFloat()
-                    val limit = _telemetry.value.currentSpeedLimit
-                    val buffer = _speedThresholdBuffer.value
-                    val isOver = speed > (limit + buffer)
+                if (!_isSimulationMode.value) {
+                    if (obd.connectionState == ObdConnectionState.CONNECTED &&
+                        (_telemetrySource.value == TelemetrySource.HUD_OBD || _telemetrySource.value == TelemetrySource.AUTO)
+                    ) {
+                        val speed = obd.speedKmh.toFloat()
+                        val limit = _telemetry.value.currentSpeedLimit
+                        val buffer = _speedThresholdBuffer.value
+                        val isOver = speed > (limit + buffer)
 
-                    if (isOver && !lastOverSpeedState && _speedWarningEnabled.value) {
-                        HapticHelper.vibrateSpeedWarning(getApplication())
-                    }
-                    lastOverSpeedState = isOver
+                        if (isOver && !lastOverSpeedState && _speedWarningEnabled.value) {
+                            HapticHelper.vibrateSpeedWarning(getApplication())
+                        }
+                        lastOverSpeedState = isOver
 
-                    val gear = calculateGear(speed)
-                    _telemetry.update {
-                        it.copy(
-                            speedKmh = speed,
-                            rpm = obd.rpm,
-                            gear = gear,
-                            coolantTempC = obd.coolantTempC,
-                            batteryVoltage = obd.batteryVoltage,
-                            throttlePercent = obd.throttlePercent,
-                            isOverSpeed = isOver,
-                            source = TelemetrySource.HUD_OBD
-                        )
+                        val gear = calculateGear(speed)
+                        _telemetry.update {
+                            it.copy(
+                                speedKmh = speed,
+                                rpm = obd.rpm,
+                                gear = gear,
+                                coolantTempC = obd.coolantTempC,
+                                batteryVoltage = obd.batteryVoltage,
+                                throttlePercent = obd.throttlePercent,
+                                isOverSpeed = isOver,
+                                source = TelemetrySource.HUD_OBD
+                            )
+                        }
+                    } else if (obd.connectionState == ObdConnectionState.DISCONNECTED ||
+                               obd.connectionState == ObdConnectionState.ERROR) {
+                        // Fall back to GPS source when OBD is disconnected or encounters an error
+                        _telemetry.update {
+                            if (it.source == TelemetrySource.HUD_OBD) {
+                                it.copy(source = TelemetrySource.HUD_GPS)
+                            } else {
+                                it
+                            }
+                        }
                     }
                 }
             }
