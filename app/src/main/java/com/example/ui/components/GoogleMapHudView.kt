@@ -278,11 +278,20 @@ private fun RealGoogleMapsWebView(
     AndroidView(
         modifier = modifier,
         factory = { ctx ->
+            try {
+                val baseCache = java.io.File(ctx.cacheDir, "WebView/Default/HTTP Cache/Code Cache")
+                java.io.File(baseCache, "wasm").mkdirs()
+                java.io.File(baseCache, "js").mkdirs()
+                java.io.File(ctx.cacheDir, "WebView/Default/Code Cache/wasm").mkdirs()
+                java.io.File(ctx.cacheDir, "WebView/Default/Code Cache/js").mkdirs()
+            } catch (_: Exception) {}
+
             WebView(ctx).apply {
                 layoutParams = ViewGroup.LayoutParams(
                     ViewGroup.LayoutParams.MATCH_PARENT,
                     ViewGroup.LayoutParams.MATCH_PARENT
                 )
+                setBackgroundColor(android.graphics.Color.BLACK)
                 try {
                     setLayerType(View.LAYER_TYPE_SOFTWARE, null)
                 } catch (_: Exception) {}
@@ -323,6 +332,11 @@ private fun RealGoogleMapsWebView(
                     }
 
                     override fun onRenderProcessGone(view: WebView?, detail: RenderProcessGoneDetail?): Boolean {
+                        try {
+                            (view?.parent as? ViewGroup)?.removeView(view)
+                            view?.destroy()
+                        } catch (_: Exception) {}
+                        onLoadingChanged(false)
                         return true
                     }
 

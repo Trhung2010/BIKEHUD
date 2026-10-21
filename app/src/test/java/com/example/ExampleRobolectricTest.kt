@@ -206,5 +206,37 @@ class ExampleRobolectricTest {
         viewModel.selectStep(3)
         assertEquals(3, viewModel.currentStepIndex.value)
         assertEquals(route.steps[3].distanceMeters, viewModel.stepRemainingDistance.value)
+
+        // Previous step
+        viewModel.previousStep()
+        assertEquals(2, viewModel.currentStepIndex.value)
+        assertEquals(route.steps[2].distanceMeters, viewModel.stepRemainingDistance.value)
+    }
+
+    @Test
+    fun `test sprint drag acceleration timer and helmet audio controls`() {
+        val application = ApplicationProvider.getApplicationContext<android.app.Application>()
+        val viewModel = com.example.viewmodel.HudViewModel(application)
+
+        // Verify initial sprint state is IDLE
+        assertEquals(com.example.model.SprintStatus.IDLE, viewModel.sprintState.value.status)
+
+        // Arm sprint timer for 0-60 km/h
+        viewModel.armSprintTimer(com.example.model.SprintTarget.SPEED_0_60)
+        assertEquals(com.example.model.SprintStatus.ARMED, viewModel.sprintState.value.status)
+        assertEquals(com.example.model.SprintTarget.SPEED_0_60, viewModel.sprintState.value.target)
+
+        // Cancel sprint timer
+        viewModel.cancelSprintTimer()
+        assertEquals(com.example.model.SprintStatus.IDLE, viewModel.sprintState.value.status)
+
+        // Test audio beep and voice toggles
+        assertTrue(viewModel.voiceAlertEnabled.value)
+        viewModel.toggleVoiceAlert()
+        assertFalse(viewModel.voiceAlertEnabled.value)
+
+        assertTrue(viewModel.audioBeepEnabled.value)
+        viewModel.toggleAudioBeep()
+        assertFalse(viewModel.audioBeepEnabled.value)
     }
 }

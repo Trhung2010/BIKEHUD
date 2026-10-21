@@ -25,6 +25,7 @@ import androidx.compose.material.icons.filled.LightMode
 import androidx.compose.material.icons.filled.Navigation
 import androidx.compose.material.icons.filled.Palette
 import androidx.compose.material.icons.filled.Search
+import androidx.compose.material.icons.filled.ScreenRotation
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -81,6 +82,11 @@ fun LandscapeCockpitHud(
     onOpenSpeedLimitDialog: () -> Unit,
     onOpenSosDialog: (() -> Unit)? = null,
     onOpenObdDialog: (() -> Unit)? = null,
+    onOpenSprintDialog: (() -> Unit)? = null,
+    onOpenTripDialog: (() -> Unit)? = null,
+    onNextStep: (() -> Unit)? = null,
+    onPrevStep: (() -> Unit)? = null,
+    onToggleOrientation: (() -> Unit)? = null,
     onOpenSettings: () -> Unit,
     onTogglePlayPause: () -> Unit,
     onNextTrack: () -> Unit,
@@ -137,34 +143,109 @@ fun LandscapeCockpitHud(
         }
 
         // -------------------------------------------------------------
+        // CENTER WING (Panel 2): BUILT-IN REAL GOOGLE MAPS HUD + CHECKPOINT
         // -------------------------------------------------------------
-        // CENTER WING (Panel 2): BUILT-IN REAL GOOGLE MAPS HUD
-        // -------------------------------------------------------------
-        Box(
+        Column(
             modifier = Modifier
                 .weight(1.35f)
-                .fillMaxHeight()
-                .clip(RoundedCornerShape(12.dp))
-                .border(1.dp, colorTheme.primaryColor.copy(alpha = 0.4f), RoundedCornerShape(12.dp))
+                .fillMaxHeight(),
+            verticalArrangement = Arrangement.spacedBy(4.dp)
         ) {
-            GoogleMapHudView(
-                route = currentRoute,
-                currentStep = currentStep,
-                stepIndex = stepIndex,
-                totalSteps = totalSteps,
-                remainingMeters = remainingMeters,
-                compassHeading = telemetry.compassHeadingDegrees,
-                speedKmh = telemetry.speedKmh,
-                currentLocation = currentLocation,
-                isGpsActive = isGpsActive,
-                gpsAccuracy = gpsAccuracy,
-                colorTheme = colorTheme,
-                onOpenSearch = onOpenSearch,
-                onSelectStep = onSelectStep,
-                onOpenSos = onOpenSosDialog,
-                isMirrored = isMirrorMode,
-                modifier = Modifier.fillMaxSize()
-            )
+            // Compact Checkpoint Bar in Landscape
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(8.dp))
+                    .background(Color(0xFF090E1A))
+                    .border(1.dp, colorTheme.primaryColor.copy(alpha = 0.4f), RoundedCornerShape(8.dp))
+                    .padding(horizontal = 8.dp, vertical = 4.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.weight(1f)) {
+                    Box(
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(4.dp))
+                            .background(colorTheme.primaryColor.copy(alpha = 0.2f))
+                            .padding(horizontal = 5.dp, vertical = 2.dp)
+                    ) {
+                        Text(
+                            text = "CP ${stepIndex + 1}/$totalSteps",
+                            color = colorTheme.primaryColor,
+                            fontSize = 9.sp,
+                            fontWeight = FontWeight.Black,
+                            fontFamily = FontFamily.Monospace
+                        )
+                    }
+                    Spacer(modifier = Modifier.width(6.dp))
+                    Text(
+                        text = currentStep.instruction,
+                        color = Color.White,
+                        fontSize = 11.sp,
+                        fontWeight = FontWeight.Bold,
+                        maxLines = 1,
+                        modifier = Modifier.weight(1f)
+                    )
+                }
+
+                Spacer(modifier = Modifier.width(6.dp))
+
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(
+                        text = if (remainingMeters >= 1000) String.format(java.util.Locale.US, "%.1f km", remainingMeters / 1000f) else "$remainingMeters m",
+                        color = Color(0xFF64B5F6),
+                        fontSize = 10.sp,
+                        fontWeight = FontWeight.Bold,
+                        fontFamily = FontFamily.Monospace
+                    )
+                    Spacer(modifier = Modifier.width(6.dp))
+                    if (onNextStep != null) {
+                        Box(
+                            modifier = Modifier
+                                .clip(RoundedCornerShape(6.dp))
+                                .background(colorTheme.primaryColor)
+                                .clickable { onNextStep() }
+                                .padding(horizontal = 7.dp, vertical = 3.dp)
+                                .testTag("landscape_next_checkpoint_button")
+                        ) {
+                            Text(
+                                text = "TIẾP TỤC ➔",
+                                color = Color.Black,
+                                fontSize = 9.sp,
+                                fontWeight = FontWeight.Black,
+                                fontFamily = FontFamily.Monospace
+                            )
+                        }
+                    }
+                }
+            }
+
+            Box(
+                modifier = Modifier
+                    .weight(1f)
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(10.dp))
+                    .border(1.dp, colorTheme.primaryColor.copy(alpha = 0.4f), RoundedCornerShape(10.dp))
+            ) {
+                GoogleMapHudView(
+                    route = currentRoute,
+                    currentStep = currentStep,
+                    stepIndex = stepIndex,
+                    totalSteps = totalSteps,
+                    remainingMeters = remainingMeters,
+                    compassHeading = telemetry.compassHeadingDegrees,
+                    speedKmh = telemetry.speedKmh,
+                    currentLocation = currentLocation,
+                    isGpsActive = isGpsActive,
+                    gpsAccuracy = gpsAccuracy,
+                    colorTheme = colorTheme,
+                    onOpenSearch = onOpenSearch,
+                    onSelectStep = onSelectStep,
+                    onOpenSos = onOpenSosDialog,
+                    isMirrored = isMirrorMode,
+                    modifier = Modifier.fillMaxSize()
+                )
+            }
         }
 
         // -------------------------------------------------------------
@@ -300,6 +381,57 @@ fun LandscapeCockpitHud(
                         tint = colorTheme.primaryColor,
                         modifier = Modifier.size(14.dp)
                     )
+                }
+
+                // Sprint Drag Button
+                if (onOpenSprintDialog != null) {
+                    Box(
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(6.dp))
+                            .background(Color(0xFFFF9100).copy(alpha = 0.25f))
+                            .border(1.dp, Color(0xFFFF9100), RoundedCornerShape(6.dp))
+                            .clickable { onOpenSprintDialog() }
+                            .padding(horizontal = 6.dp, vertical = 3.dp)
+                            .testTag("landscape_sprint_drag_button")
+                    ) {
+                        Text(
+                            text = "DRAG",
+                            color = Color(0xFFFFAB40),
+                            fontSize = 9.sp,
+                            fontWeight = FontWeight.Black,
+                            fontFamily = FontFamily.Monospace
+                        )
+                    }
+                }
+
+                // Orientation Toggle (Chuyển sang đứng)
+                if (onToggleOrientation != null) {
+                    Box(
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(6.dp))
+                            .background(Color(0xFF0F172A))
+                            .border(1.dp, colorTheme.primaryColor.copy(alpha = 0.6f), RoundedCornerShape(6.dp))
+                            .clickable { onToggleOrientation() }
+                            .padding(horizontal = 6.dp, vertical = 3.dp)
+                            .testTag("landscape_toggle_orientation_button")
+                    ) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Icon(
+                                imageVector = Icons.Default.ScreenRotation,
+                                contentDescription = "Chuyển màn hình đứng",
+                                tint = colorTheme.primaryColor,
+                                modifier = Modifier.size(11.dp)
+                            )
+                            Spacer(modifier = Modifier.width(3.dp))
+                            Text(
+                                text = "ĐỨNG",
+                                color = Color.White,
+                                fontSize = 9.sp,
+                                fontWeight = FontWeight.Bold,
+                                fontFamily = FontFamily.Monospace
+                            )
+                        }
+                    }
                 }
 
                 // Settings

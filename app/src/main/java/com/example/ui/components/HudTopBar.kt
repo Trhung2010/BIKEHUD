@@ -21,6 +21,7 @@ import androidx.compose.material.icons.filled.GpsFixed
 import androidx.compose.material.icons.filled.LightMode
 import androidx.compose.material.icons.filled.Palette
 import androidx.compose.material.icons.filled.PlayCircle
+import androidx.compose.material.icons.filled.ScreenRotation
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.Speed
 import androidx.compose.material3.Icon
@@ -60,6 +61,10 @@ fun HudTopBar(
     onOpenSpeedLimitDialog: (() -> Unit)? = null,
     onOpenSosDialog: (() -> Unit)? = null,
     onOpenObdDialog: (() -> Unit)? = null,
+    onOpenSprintDialog: (() -> Unit)? = null,
+    onOpenTripDialog: (() -> Unit)? = null,
+    isLandscape: Boolean = false,
+    onToggleOrientation: (() -> Unit)? = null,
     onOpenSettings: () -> Unit,
     modifier: Modifier = Modifier
 ) {
@@ -70,38 +75,72 @@ fun HudTopBar(
         horizontalArrangement = Arrangement.SpaceBetween,
         verticalAlignment = Alignment.CenterVertically
     ) {
-        // Left side: Mirror Mode Button (CRUCIAL for Windshield reflection!)
+        // Left side: Mirror Mode Button + Screen Orientation Toggle
         Row(
             verticalAlignment = Alignment.CenterVertically,
-            modifier = Modifier
-                .clip(RoundedCornerShape(8.dp))
-                .background(
-                    if (isMirrorMode) colorTheme.primaryColor.copy(alpha = 0.25f)
-                    else Color(0xFF111827).copy(alpha = 0.8f)
-                )
-                .border(
-                    width = if (isMirrorMode) 2.dp else 1.dp,
-                    color = if (isMirrorMode) colorTheme.primaryColor else Color(0xFF374151),
-                    shape = RoundedCornerShape(8.dp)
-                )
-                .clickable { onToggleMirror() }
-                .padding(horizontal = 10.dp, vertical = 6.dp)
-                .testTag("hud_mirror_mode_button")
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
         ) {
-            Icon(
-                imageVector = Icons.Default.Flip,
-                contentDescription = "Chế độ phản chiếu kính",
-                tint = if (isMirrorMode) colorTheme.primaryColor else Color(0xFF9CA3AF),
-                modifier = Modifier.size(18.dp)
-            )
-            Spacer(modifier = Modifier.width(6.dp))
-            Text(
-                text = if (isMirrorMode) "LẬT GƯƠNG (BẬT)" else "LẬT KÍNH HUD",
-                color = if (isMirrorMode) colorTheme.primaryColor else Color(0xFFE5E7EB),
-                fontSize = 11.sp,
-                fontWeight = FontWeight.Bold,
-                fontFamily = FontFamily.Monospace
-            )
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                modifier = Modifier
+                    .clip(RoundedCornerShape(8.dp))
+                    .background(
+                        if (isMirrorMode) colorTheme.primaryColor.copy(alpha = 0.25f)
+                        else Color(0xFF111827).copy(alpha = 0.8f)
+                    )
+                    .border(
+                        width = if (isMirrorMode) 2.dp else 1.dp,
+                        color = if (isMirrorMode) colorTheme.primaryColor else Color(0xFF374151),
+                        shape = RoundedCornerShape(8.dp)
+                    )
+                    .clickable { onToggleMirror() }
+                    .padding(horizontal = 9.dp, vertical = 6.dp)
+                    .testTag("hud_mirror_mode_button")
+            ) {
+                Icon(
+                    imageVector = Icons.Default.Flip,
+                    contentDescription = "Chế độ phản chiếu kính",
+                    tint = if (isMirrorMode) colorTheme.primaryColor else Color(0xFF9CA3AF),
+                    modifier = Modifier.size(17.dp)
+                )
+                Spacer(modifier = Modifier.width(4.dp))
+                Text(
+                    text = if (isMirrorMode) "LẬT GƯƠNG" else "LẬT KÍNH",
+                    color = if (isMirrorMode) colorTheme.primaryColor else Color(0xFFE5E7EB),
+                    fontSize = 11.sp,
+                    fontWeight = FontWeight.Bold,
+                    fontFamily = FontFamily.Monospace
+                )
+            }
+
+            // Screen Orientation Button (MÀN HÌNH NGANG / ĐỨNG)
+            if (onToggleOrientation != null) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(8.dp))
+                        .background(Color(0xFF0F172A))
+                        .border(1.dp, colorTheme.primaryColor.copy(alpha = 0.6f), RoundedCornerShape(8.dp))
+                        .clickable { onToggleOrientation() }
+                        .padding(horizontal = 9.dp, vertical = 6.dp)
+                        .testTag("hud_toggle_orientation_button")
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.ScreenRotation,
+                        contentDescription = "Chuyển hướng màn hình",
+                        tint = colorTheme.primaryColor,
+                        modifier = Modifier.size(17.dp)
+                    )
+                    Spacer(modifier = Modifier.width(5.dp))
+                    Text(
+                        text = if (isLandscape) "MÀN HÌNH ĐỨNG" else "MÀN HÌNH NGANG",
+                        color = Color.White,
+                        fontSize = 11.sp,
+                        fontWeight = FontWeight.Bold,
+                        fontFamily = FontFamily.Monospace
+                    )
+                }
+            }
         }
 
         // Center / Right Quick Action Chips
@@ -239,6 +278,81 @@ fun HudTopBar(
                         fontWeight = FontWeight.Bold,
                         fontFamily = FontFamily.Monospace
                     )
+                }
+            }
+
+            // Sprint Drag Button (0-60 & 0-100 km/h)
+            if (onOpenSprintDialog != null) {
+                Box(
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(6.dp))
+                        .background(Color(0xFFFF9100).copy(alpha = 0.25f))
+                        .border(1.dp, Color(0xFFFF9100), RoundedCornerShape(6.dp))
+                        .clickable { onOpenSprintDialog() }
+                        .semantics { contentDescription = "Đo gia tốc Sprint 0-100" }
+                        .padding(horizontal = 7.dp, vertical = 4.dp)
+                        .testTag("topbar_sprint_drag_button")
+                ) {
+                    Text(
+                        text = "DRAG",
+                        color = Color(0xFFFFAB40),
+                        fontSize = 10.sp,
+                        fontWeight = FontWeight.Black,
+                        fontFamily = FontFamily.Monospace
+                    )
+                }
+            }
+
+            // Trip Meter Button
+            if (onOpenTripDialog != null) {
+                Box(
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(6.dp))
+                        .background(Color(0xFF0F172A))
+                        .border(1.dp, colorTheme.primaryColor.copy(alpha = 0.5f), RoundedCornerShape(6.dp))
+                        .clickable { onOpenTripDialog() }
+                        .semantics { contentDescription = "Xem đồng hồ hành trình Trip" }
+                        .padding(horizontal = 7.dp, vertical = 4.dp)
+                        .testTag("topbar_trip_meter_button")
+                ) {
+                    Text(
+                        text = "TRIP",
+                        color = Color.White,
+                        fontSize = 10.sp,
+                        fontWeight = FontWeight.Bold,
+                        fontFamily = FontFamily.Monospace
+                    )
+                }
+            }
+
+            // Orientation Toggle Button: Rotate to Landscape (MÀN HÌNH NGANG)
+            if (onToggleOrientation != null) {
+                Box(
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(6.dp))
+                        .background(colorTheme.primaryColor.copy(alpha = 0.25f))
+                        .border(1.dp, colorTheme.primaryColor, RoundedCornerShape(6.dp))
+                        .clickable { onToggleOrientation() }
+                        .semantics { contentDescription = "Chuyển sang màn hình ngang HUD" }
+                        .padding(horizontal = 7.dp, vertical = 4.dp)
+                        .testTag("topbar_toggle_orientation_button")
+                ) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Icon(
+                            imageVector = Icons.Default.ScreenRotation,
+                            contentDescription = null,
+                            tint = colorTheme.primaryColor,
+                            modifier = Modifier.size(12.dp)
+                        )
+                        Spacer(modifier = Modifier.width(3.dp))
+                        Text(
+                            text = "NGANG",
+                            color = Color.White,
+                            fontSize = 10.sp,
+                            fontWeight = FontWeight.Bold,
+                            fontFamily = FontFamily.Monospace
+                        )
+                    }
                 }
             }
 

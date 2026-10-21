@@ -1,5 +1,7 @@
 package com.example.ui.screens
 
+import android.app.Activity
+import android.content.pm.ActivityInfo
 import android.content.res.Configuration
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.FastOutSlowInEasing
@@ -39,6 +41,7 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -48,6 +51,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.platform.LocalConfiguration
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
@@ -58,6 +62,7 @@ import com.example.model.BluetoothDeviceInfo
 import com.example.model.HudColorTheme
 import com.example.model.NavDisplayMode
 import com.example.model.TelemetrySource
+import com.example.ui.components.CheckpointNavControl
 import com.example.ui.components.GoogleMapHudView
 import com.example.ui.components.HudQuickSettingsDialog
 import com.example.ui.components.HudTopBar
@@ -71,6 +76,8 @@ import com.example.ui.components.SearchDestinationDialog
 import com.example.ui.components.SosEmergencyDialog
 import com.example.ui.components.SpeedLimitAdjusterDialog
 import com.example.ui.components.SpeedometerGauge
+import com.example.ui.components.SprintDragTimerDialog
+import com.example.ui.components.TripTelemetryDialog
 import com.example.viewmodel.HudViewModel
 
 @Composable
@@ -109,8 +116,14 @@ fun HudMainScreen(
     var showSpeedLimitDialog by remember { mutableStateOf(false) }
     var showSosDialog by remember { mutableStateOf(false) }
     var showObdDialog by remember { mutableStateOf(false) }
+    var showSprintDialog by remember { mutableStateOf(false) }
+    var showTripDialog by remember { mutableStateOf(false) }
     var isMapExpanded by remember { mutableStateOf(false) }
     var pairedDevices by remember { mutableStateOf<List<BluetoothDeviceInfo>>(emptyList()) }
+
+    val sprintState by viewModel.sprintState.collectAsStateWithLifecycle()
+    val voiceAlertEnabled by viewModel.voiceAlertEnabled.collectAsStateWithLifecycle()
+    val audioBeepEnabled by viewModel.audioBeepEnabled.collectAsStateWithLifecycle()
 
     androidx.compose.runtime.LaunchedEffect(showObdDialog) {
         if (showObdDialog) {
@@ -130,8 +143,27 @@ fun HudMainScreen(
         label = "overspeedBorderAlpha"
     )
 
+    val context = LocalContext.current
+    val activity = context as? Activity
+    var currentOrientationPreference by remember { mutableIntStateOf(ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE) }
+
     val configuration = LocalConfiguration.current
     val isLandscape = configuration.orientation == Configuration.ORIENTATION_LANDSCAPE
+
+    val onSelectOrientation: (Int) -> Unit = { newOrientation ->
+        currentOrientationPreference = newOrientation
+        activity?.requestedOrientation = newOrientation
+    }
+
+    val toggleOrientation: () -> Unit = {
+        val next = if (isLandscape) {
+            ActivityInfo.SCREEN_ORIENTATION_PORTRAIT
+        } else {
+            ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE
+        }
+        currentOrientationPreference = next
+        activity?.requestedOrientation = next
+    }
 
     val currentStep = currentRoute.steps.getOrNull(currentStepIndex)
         ?: currentRoute.steps.first()
@@ -197,6 +229,10 @@ fun HudMainScreen(
                             onOpenSpeedLimitDialog = { showSpeedLimitDialog = true },
                             onOpenSosDialog = { showSosDialog = true },
                             onOpenObdDialog = { showObdDialog = true },
+                            onOpenSprintDialog = { showSprintDialog = true },
+                            onOpenTripDialog = { showTripDialog = true },
+                            isLandscape = isLandscape,
+                            onToggleOrientation = toggleOrientation,
                             onOpenSettings = { showSettingsDialog = true }
                         )
                     }
@@ -294,6 +330,11 @@ fun HudMainScreen(
                                 onOpenSpeedLimitDialog = { showSpeedLimitDialog = true },
                                 onOpenSosDialog = { showSosDialog = true },
                                 onOpenObdDialog = { showObdDialog = true },
+                                onOpenSprintDialog = { showSprintDialog = true },
+                                onOpenTripDialog = { showTripDialog = true },
+                                onNextStep = { viewModel.nextStep() },
+                                onPrevStep = { viewModel.previousStep() },
+                                onToggleOrientation = toggleOrientation,
                                 onOpenSettings = { showSettingsDialog = true },
                                 onTogglePlayPause = { viewModel.togglePlayPause() },
                                 onNextTrack = { viewModel.nextTrack() },
@@ -383,6 +424,20 @@ fun HudMainScreen(
                                         )
                                     }
                                 }
+
+                                // GLOVE-FRIENDLY HUD CHECKPOINT NAVIGATION CONTROLLER
+                                CheckpointNavControl(
+                                    currentStep = currentStep,
+                                    stepIndex = currentStepIndex,
+                                    totalSteps = currentRoute.steps.size,
+                                    remainingMeters = remainingMeters,
+                                    colorTheme = colorTheme,
+                                    onNextCheckpoint = { viewModel.nextStep() },
+                                    onPrevCheckpoint = { viewModel.previousStep() },
+                                    onSelectCheckpoint = { idx -> viewModel.selectStep(idx) },
+                                    allSteps = currentRoute.steps,
+                                    modifier = Modifier.fillMaxWidth()
+                                )
 
                                 // CONSOLIDATED BUILT-IN GOOGLE MAPS BLOCK (EDGE-TO-EDGE REAL MAP)
                                 GoogleMapHudView(
@@ -486,7 +541,9 @@ fun HudMainScreen(
             onResetTrip = { viewModel.resetTrip() },
             onCycleBluetoothDevice = { viewModel.cycleHelmetDevice() },
             onOpenSosDialog = { showSosDialog = true },
-            onOpenObdDialog = { showObdDialog = true }
+            onOpenObdDialog = { showObdDialog = true },
+            currentOrientation = currentOrientationPreference,
+            onSelectOrientation = onSelectOrientation
         )
 
         // Custom Destination Search & Google Maps Dialog
@@ -546,6 +603,37 @@ fun HudMainScreen(
             onConnectObd = { addr, name -> viewModel.connectObd(addr, name) },
             onDisconnectObd = { viewModel.disconnectObd() },
             colorTheme = colorTheme
+        )
+
+        // Sprint Drag Acceleration 0-60 / 0-100 km/h Dialog
+        SprintDragTimerDialog(
+            isOpen = showSprintDialog,
+            onDismiss = { showSprintDialog = false },
+            sprintState = sprintState,
+            currentSpeedKmh = telemetry.speedKmh,
+            colorTheme = colorTheme,
+            voiceAlertEnabled = voiceAlertEnabled,
+            audioBeepEnabled = audioBeepEnabled,
+            onArmTimer = { viewModel.armSprintTimer(it) },
+            onCancelTimer = { viewModel.cancelSprintTimer() },
+            onResetRecords = { viewModel.resetSprintRecords() },
+            onSimulateRun = { viewModel.testSimulateSprintRun() },
+            onToggleVoiceAlert = { viewModel.toggleVoiceAlert() },
+            onToggleAudioBeep = { viewModel.toggleAudioBeep() }
+        )
+
+        // Trip Telemetry & Stats Dialog
+        TripTelemetryDialog(
+            isOpen = showTripDialog,
+            onDismiss = { showTripDialog = false },
+            telemetry = telemetry,
+            speedUnit = speedUnit,
+            maxLeftLean = maxLeftLean,
+            maxRightLean = maxRightLean,
+            best0to60 = sprintState.best0to60,
+            best0to100 = sprintState.best0to100,
+            colorTheme = colorTheme,
+            onResetTrip = { viewModel.resetTrip() }
         )
     }
 }

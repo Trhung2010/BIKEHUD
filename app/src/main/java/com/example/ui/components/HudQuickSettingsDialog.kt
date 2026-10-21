@@ -21,6 +21,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import android.content.Intent
+import android.content.pm.ActivityInfo
 import android.provider.Settings
 import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.Check
@@ -31,6 +32,7 @@ import androidx.compose.material.icons.filled.Message
 import androidx.compose.material.icons.filled.MusicNote
 import androidx.compose.material.icons.filled.Navigation
 import androidx.compose.material.icons.filled.Refresh
+import androidx.compose.material.icons.filled.ScreenRotation
 import androidx.compose.material.icons.filled.Speed
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.ElevatedButton
@@ -76,7 +78,9 @@ fun HudQuickSettingsDialog(
     onResetTrip: () -> Unit,
     onCycleBluetoothDevice: () -> Unit,
     onOpenSosDialog: (() -> Unit)? = null,
-    onOpenObdDialog: (() -> Unit)? = null
+    onOpenObdDialog: (() -> Unit)? = null,
+    currentOrientation: Int = ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE,
+    onSelectOrientation: ((Int) -> Unit)? = null
 ) {
     if (!isOpen) return
 
@@ -326,6 +330,127 @@ fun HudQuickSettingsDialog(
                                 fontSize = 13.sp,
                                 fontWeight = FontWeight.Bold,
                                 fontFamily = FontFamily.Monospace
+                            )
+                        }
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(16.dp))
+
+                // Section 4B: Screen Orientation Selector (Màn hình ngang vs Màn hình đứng)
+                Text(
+                    text = "HƯỚNG MÀN HÌNH HUD (ORIENTATION)",
+                    color = currentTheme.primaryColor,
+                    fontSize = 12.sp,
+                    fontWeight = FontWeight.Bold,
+                    fontFamily = FontFamily.Monospace
+                )
+                Spacer(modifier = Modifier.height(8.dp))
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    val isLandscapeSel = currentOrientation == ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE ||
+                            currentOrientation == ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE
+                    val isPortraitSel = currentOrientation == ActivityInfo.SCREEN_ORIENTATION_PORTRAIT
+                    val isSensorSel = currentOrientation == ActivityInfo.SCREEN_ORIENTATION_SENSOR ||
+                            currentOrientation == ActivityInfo.SCREEN_ORIENTATION_FULL_SENSOR
+
+                    // Màn hình ngang (Landscape - Khuyên dùng)
+                    Box(
+                        modifier = Modifier
+                            .weight(1.3f)
+                            .clip(RoundedCornerShape(8.dp))
+                            .background(if (isLandscapeSel) currentTheme.primaryColor.copy(alpha = 0.25f) else Color(0xFF1E293B))
+                            .border(1.dp, if (isLandscapeSel) currentTheme.primaryColor else Color(0xFF334155), RoundedCornerShape(8.dp))
+                            .clickable {
+                                onSelectOrientation?.invoke(ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE)
+                            }
+                            .padding(vertical = 10.dp, horizontal = 6.dp)
+                            .testTag("settings_orientation_landscape"),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                            Icon(
+                                imageVector = Icons.Default.ScreenRotation,
+                                contentDescription = null,
+                                tint = if (isLandscapeSel) currentTheme.primaryColor else Color.White,
+                                modifier = Modifier.size(16.dp)
+                            )
+                            Spacer(modifier = Modifier.height(3.dp))
+                            Text(
+                                text = "MÀN HÌNH NGANG",
+                                color = if (isLandscapeSel) currentTheme.primaryColor else Color.White,
+                                fontSize = 11.sp,
+                                fontWeight = FontWeight.Bold,
+                                fontFamily = FontFamily.Monospace
+                            )
+                            Text(
+                                text = "Cockpit Siêu Xe (Khuyên dùng)",
+                                color = if (isLandscapeSel) currentTheme.accentColor else Color(0xFF94A3B8),
+                                fontSize = 9.sp
+                            )
+                        }
+                    }
+
+                    // Màn hình đứng (Portrait)
+                    Box(
+                        modifier = Modifier
+                            .weight(1f)
+                            .clip(RoundedCornerShape(8.dp))
+                            .background(if (isPortraitSel) currentTheme.primaryColor.copy(alpha = 0.25f) else Color(0xFF1E293B))
+                            .border(1.dp, if (isPortraitSel) currentTheme.primaryColor else Color(0xFF334155), RoundedCornerShape(8.dp))
+                            .clickable {
+                                onSelectOrientation?.invoke(ActivityInfo.SCREEN_ORIENTATION_PORTRAIT)
+                            }
+                            .padding(vertical = 10.dp, horizontal = 6.dp)
+                            .testTag("settings_orientation_portrait"),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                            Text(
+                                text = "MÀN HÌNH ĐỨNG",
+                                color = if (isPortraitSel) currentTheme.primaryColor else Color.White,
+                                fontSize = 11.sp,
+                                fontWeight = FontWeight.Bold,
+                                fontFamily = FontFamily.Monospace
+                            )
+                            Spacer(modifier = Modifier.height(3.dp))
+                            Text(
+                                text = "Dọc Ghi Đông",
+                                color = if (isPortraitSel) currentTheme.accentColor else Color(0xFF94A3B8),
+                                fontSize = 9.sp
+                            )
+                        }
+                    }
+
+                    // Tự động xoay (Auto)
+                    Box(
+                        modifier = Modifier
+                            .weight(0.9f)
+                            .clip(RoundedCornerShape(8.dp))
+                            .background(if (isSensorSel) currentTheme.primaryColor.copy(alpha = 0.25f) else Color(0xFF1E293B))
+                            .border(1.dp, if (isSensorSel) currentTheme.primaryColor else Color(0xFF334155), RoundedCornerShape(8.dp))
+                            .clickable {
+                                onSelectOrientation?.invoke(ActivityInfo.SCREEN_ORIENTATION_SENSOR)
+                            }
+                            .padding(vertical = 10.dp, horizontal = 6.dp)
+                            .testTag("settings_orientation_sensor"),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                            Text(
+                                text = "TỰ ĐỘNG",
+                                color = if (isSensorSel) currentTheme.primaryColor else Color.White,
+                                fontSize = 11.sp,
+                                fontWeight = FontWeight.Bold,
+                                fontFamily = FontFamily.Monospace
+                            )
+                            Spacer(modifier = Modifier.height(3.dp))
+                            Text(
+                                text = "Theo cảm biến",
+                                color = if (isSensorSel) currentTheme.accentColor else Color(0xFF94A3B8),
+                                fontSize = 9.sp
                             )
                         }
                     }

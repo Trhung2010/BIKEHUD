@@ -180,3 +180,47 @@ data class EmergencyContact(
     val customMessageTemplate: String = "CẦN TRỢ GIÚP KHẨN CẤP! Tôi đang gặp sự cố khi chạy xe máy. Vị trí GPS của tôi: {maps_url}"
 )
 
+enum class SprintStatus {
+    IDLE,
+    ARMED,
+    LAUNCHED,
+    COMPLETED
+}
+
+enum class SprintTarget(val label: String, val targetSpeedKmh: Float) {
+    SPEED_0_50("0 - 50 km/h", 50f),
+    SPEED_0_60("0 - 60 km/h", 60f),
+    SPEED_0_100("0 - 100 km/h", 100f)
+}
+
+data class SprintResult(
+    val id: String,
+    val target: SprintTarget,
+    val elapsedSeconds: Float,
+    val topSpeedKmh: Float,
+    val timestampMs: Long = System.currentTimeMillis()
+)
+
+data class SprintTimerState(
+    val status: SprintStatus = SprintStatus.IDLE,
+    val target: SprintTarget = SprintTarget.SPEED_0_60,
+    val currentElapsedSeconds: Float = 0f,
+    val time0to50: Float? = null,
+    val time0to60: Float? = null,
+    val time0to100: Float? = null,
+    val topSpeedReached: Float = 0f,
+    val recentResults: List<SprintResult> = emptyList(),
+    val best0to60: Float? = null,
+    val best0to100: Float? = null
+)
+
+data class TripRecord(
+    val isRecording: Boolean = true,
+    val tripDistanceKm: Float = 0f,
+    val elapsedSeconds: Long = 0L,
+    val averageSpeedKmh: Float = 0f,
+    val maxSpeedKmh: Float = 0f,
+    val maxLeftLean: Float = 0f,
+    val maxRightLean: Float = 0f
+)
+

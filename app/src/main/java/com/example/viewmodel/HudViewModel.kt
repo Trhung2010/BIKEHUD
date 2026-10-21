@@ -21,11 +21,17 @@ import com.example.model.TelemetrySource
 import com.example.model.TurnType
 import com.example.service.BluetoothAudioController
 import com.example.service.LeanAngleSensor
-import com.example.service.LocationSpeedService
+import com.example.service.LocationData
+import com.example.service.LocationService
 import com.example.service.MotoNotificationListenerService
 import com.example.service.ObdBluetoothService
+import com.example.model.SprintResult
+import com.example.model.SprintStatus
+import com.example.model.SprintTarget
+import com.example.model.SprintTimerState
 import com.example.util.EmergencySosHelper
 import com.example.util.HapticHelper
+import com.example.util.HelmetAudioAlertHelper
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -39,14 +45,16 @@ import kotlin.math.sin
 class HudViewModel(application: Application) : AndroidViewModel(application) {
 
     private val bluetoothController = BluetoothAudioController(application)
-    private val locationSpeedService = LocationSpeedService(application)
+    private val locationService = LocationService(application)
     private val leanAngleSensor = LeanAngleSensor(application)
     private val obdService = ObdBluetoothService(application)
 
     val musicState: StateFlow<BluetoothMusicState> = bluetoothController.musicState
-    val isGpsActive: StateFlow<Boolean> = locationSpeedService.isGpsActive
-    val gpsAccuracy: StateFlow<Float> = locationSpeedService.gpsAccuracy
-    val realLocation: StateFlow<Location?> = locationSpeedService.realLocation
+    val isGpsActive: StateFlow<Boolean> = locationService.isGpsActive
+    val gpsAccuracy: StateFlow<Float> = locationService.gpsAccuracy
+    val realLocation: StateFlow<Location?> = locationService.realLocation
+    val locationData: StateFlow<LocationData> = locationService.locationData
+    val currentGpsSpeedKmh: StateFlow<Float> = locationService.currentSpeedKmh
     val leanAngle: StateFlow<Float> = leanAngleSensor.leanAngleDegrees
     val maxLeftLean: StateFlow<Float> = leanAngleSensor.maxLeftLean
     val maxRightLean: StateFlow<Float> = leanAngleSensor.maxRightLean
@@ -58,7 +66,7 @@ class HudViewModel(application: Application) : AndroidViewModel(application) {
     private val _telemetrySource = MutableStateFlow(TelemetrySource.AUTO)
     val telemetrySource: StateFlow<TelemetrySource> = _telemetrySource.asStateFlow()
 
-    fun getCurrentCoordinates(): Pair<Double, Double> = locationSpeedService.getCurrentCoordinates()
+    fun getCurrentCoordinates(): Pair<Double, Double> = locationService.getCurrentCoordinates()
 
     private val _telemetry = MutableStateFlow(RideTelemetry(currentSpeedLimit = 50, source = TelemetrySource.HUD_GPS))
     val telemetry: StateFlow<RideTelemetry> = _telemetry.asStateFlow()
@@ -109,6 +117,21 @@ class HudViewModel(application: Application) : AndroidViewModel(application) {
     private val _speedWarningEnabled = MutableStateFlow(true)
     val speedWarningEnabled: StateFlow<Boolean> = _speedWarningEnabled.asStateFlow()
 
+    // Helmet Audio & Voice Co-pilot controls
+    private val audioAlertHelper = HelmetAudioAlertHelper(application)
+    private val _voiceAlertEnabled = MutableStateFlow(true)
+    val voiceAlertEnabled: StateFlow<Boolean> = _voiceAlertEnabled.asStateFlow()
+
+    private val _audioBeepEnabled = MutableStateFlow(true)
+    val audioBeepEnabled: StateFlow<Boolean> = _audioBeepEnabled.asStateFlow()
+
+    // 0-60 & 0-100 km/h Sprint Acceleration Drag Timer
+    private val _sprintState = MutableStateFlow(SprintTimerState())
+    val sprintState: StateFlow<SprintTimerState> = _sprintState.asStateFlow()
+
+    private var sprintJob: Job? = null
+    private var sprintLaunchTimeMs = 0L
+
     // Threshold buffer before triggering warning (0 km/h: immediately, 2 km/h, 5 km/h)
     private val _speedThresholdBuffer = MutableStateFlow(0)
     val speedThresholdBuffer: StateFlow<Int> = _speedThresholdBuffer.asStateFlow()
@@ -127,6 +150,7 @@ class HudViewModel(application: Application) : AndroidViewModel(application) {
     init {
         startTelemetryLoop()
         startRealGpsTracking()
+        locationService.requestLastKnownLocation()
         listenToObdUpdates()
 
         // Hook incoming ride-safety notifications from active messaging apps
@@ -154,7 +178,7 @@ class HudViewModel(application: Application) : AndroidViewModel(application) {
      */
     fun startRealGpsTracking() {
         leanAngleSensor.startListening()
-        locationSpeedService.startGpsUpdates { gpsSpeedKmh, bearing, alt, accuracy ->
+        locationService.startTracking { gpsSpeedKmh, bearing, alt, accuracy, _ ->
             if (!_isSimulationMode.value) {
                 val isObdActive = obdTelemetry.value.connectionState == ObdConnectionState.CONNECTED &&
                         (_telemetrySource.value == TelemetrySource.HUD_OBD || _telemetrySource.value == TelemetrySource.AUTO)
@@ -166,8 +190,12 @@ class HudViewModel(application: Application) : AndroidViewModel(application) {
 
                 if (isOver && !lastOverSpeedState && _speedWarningEnabled.value) {
                     HapticHelper.vibrateSpeedWarning(getApplication())
+                    if (_audioBeepEnabled.value) audioAlertHelper.playOverSpeedBeep()
+                    if (_voiceAlertEnabled.value) audioAlertHelper.speak("Cảnh báo, tốc độ vượt quá giới hạn!")
                 }
                 lastOverSpeedState = isOver
+
+                checkSprintProgress(effectiveSpeed)
 
                 val gear = calculateGear(effectiveSpeed)
                 val rpm = if (isObdActive) obdTelemetry.value.rpm else calculateRpm(effectiveSpeed, gear)
@@ -207,8 +235,12 @@ class HudViewModel(application: Application) : AndroidViewModel(application) {
 
                     if (isOver && !lastOverSpeedState && _speedWarningEnabled.value) {
                         HapticHelper.vibrateSpeedWarning(getApplication())
+                        if (_audioBeepEnabled.value) audioAlertHelper.playOverSpeedBeep()
+                        if (_voiceAlertEnabled.value) audioAlertHelper.speak("Cảnh báo, tốc độ vượt quá giới hạn!")
                     }
                     lastOverSpeedState = isOver
+
+                    checkSprintProgress(speed)
 
                     val gear = calculateGear(speed)
                     _telemetry.update {
@@ -292,8 +324,12 @@ class HudViewModel(application: Application) : AndroidViewModel(application) {
                     val isOver = currentSimSpeed > (limit + buffer)
                     if (isOver && !lastOverSpeedState && _speedWarningEnabled.value) {
                         HapticHelper.vibrateSpeedWarning(getApplication())
+                        if (_audioBeepEnabled.value) audioAlertHelper.playOverSpeedBeep()
+                        if (_voiceAlertEnabled.value) audioAlertHelper.speak("Cảnh báo, tốc độ vượt quá giới hạn!")
                     }
                     lastOverSpeedState = isOver
+
+                    checkSprintProgress(currentSimSpeed)
 
                     _telemetry.update {
                         it.copy(
@@ -448,13 +484,25 @@ class HudViewModel(application: Application) : AndroidViewModel(application) {
         val next = _currentStepIndex.value + 1
         if (next < steps.size) {
             selectStep(next)
+            if (_voiceAlertEnabled.value) {
+                audioAlertHelper.speak("Checkpoint ${next + 1}: ${steps[next].instruction}")
+            }
+        } else {
+            selectStep(0)
+            if (_voiceAlertEnabled.value) {
+                audioAlertHelper.speak("Khởi động lại lộ trình từ checkpoint đầu tiên")
+            }
         }
     }
 
     fun previousStep() {
+        val steps = _currentRoute.value.steps
         val prev = _currentStepIndex.value - 1
         if (prev >= 0) {
             selectStep(prev)
+            if (_voiceAlertEnabled.value) {
+                audioAlertHelper.speak("Quay lại checkpoint ${prev + 1}: ${steps[prev].instruction}")
+            }
         }
     }
 
@@ -563,7 +611,7 @@ class HudViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     fun triggerEmergencySos(context: android.content.Context, onResult: (Boolean, String) -> Unit) {
-        val coords = locationSpeedService.getCurrentCoordinates()
+        val coords = locationService.getCurrentCoordinates()
         val contact = _emergencyContact.value
         val speedKmh = _telemetry.value.speedKmh
 
@@ -600,12 +648,162 @@ class HudViewModel(application: Application) : AndroidViewModel(application) {
     fun cycleHelmetDevice() = bluetoothController.cycleHelmetDevice()
     fun toggleBluetoothConnection() = bluetoothController.toggleBluetoothConnection()
 
+    // 0-60 / 0-100 km/h Sprint Acceleration Drag Timer Logic
+    private fun checkSprintProgress(speed: Float) {
+        val current = _sprintState.value
+        when (current.status) {
+            SprintStatus.ARMED -> {
+                if (speed > 1.5f) {
+                    sprintLaunchTimeMs = System.currentTimeMillis()
+                    _sprintState.update { it.copy(status = SprintStatus.LAUNCHED, topSpeedReached = speed) }
+                    if (_audioBeepEnabled.value) audioAlertHelper.playLaunchBeep()
+                    if (_voiceAlertEnabled.value) audioAlertHelper.speak("Xuất phát!")
+                    startSprintCounterLoop()
+                }
+            }
+            SprintStatus.LAUNCHED -> {
+                val top = maxOf(current.topSpeedReached, speed)
+                var t50 = current.time0to50
+                var t60 = current.time0to60
+                var t100 = current.time0to100
+                val elapsed = (System.currentTimeMillis() - sprintLaunchTimeMs) / 1000f
+
+                if (speed >= 50f && t50 == null) {
+                    t50 = elapsed
+                }
+                if (speed >= 60f && t60 == null) {
+                    t60 = elapsed
+                }
+                if (speed >= 100f && t100 == null) {
+                    t100 = elapsed
+                }
+
+                val isTargetReached = when (current.target) {
+                    SprintTarget.SPEED_0_50 -> speed >= 50f
+                    SprintTarget.SPEED_0_60 -> speed >= 60f
+                    SprintTarget.SPEED_0_100 -> speed >= 100f
+                }
+
+                if (isTargetReached) {
+                    sprintJob?.cancel()
+                    val targetTime = when (current.target) {
+                        SprintTarget.SPEED_0_50 -> t50 ?: elapsed
+                        SprintTarget.SPEED_0_60 -> t60 ?: elapsed
+                        SprintTarget.SPEED_0_100 -> t100 ?: elapsed
+                    }
+                    val result = SprintResult(
+                        id = System.currentTimeMillis().toString(),
+                        target = current.target,
+                        elapsedSeconds = targetTime,
+                        topSpeedKmh = top
+                    )
+                    val newRecent = (listOf(result) + current.recentResults).take(10)
+                    val newBest60 = if (t60 != null) minOf(current.best0to60 ?: Float.MAX_VALUE, t60) else current.best0to60
+                    val newBest100 = if (t100 != null) minOf(current.best0to100 ?: Float.MAX_VALUE, t100) else current.best0to100
+
+                    _sprintState.update {
+                        it.copy(
+                            status = SprintStatus.COMPLETED,
+                            currentElapsedSeconds = targetTime,
+                            time0to50 = t50,
+                            time0to60 = t60,
+                            time0to100 = t100,
+                            topSpeedReached = top,
+                            recentResults = newRecent,
+                            best0to60 = newBest60,
+                            best0to100 = newBest100
+                        )
+                    }
+                    if (_audioBeepEnabled.value) audioAlertHelper.playFinishChime()
+                    if (_voiceAlertEnabled.value) {
+                        val roundedTime = String.format(java.util.Locale.US, "%.2f", targetTime)
+                        audioAlertHelper.speak("Hoàn thành ${current.target.label} trong $roundedTime giây")
+                    }
+                } else {
+                    _sprintState.update {
+                        it.copy(
+                            topSpeedReached = top,
+                            time0to50 = t50,
+                            time0to60 = t60,
+                            time0to100 = t100
+                        )
+                    }
+                }
+            }
+            else -> {}
+        }
+    }
+
+    private fun startSprintCounterLoop() {
+        sprintJob?.cancel()
+        sprintJob = viewModelScope.launch {
+            while (isActive && _sprintState.value.status == SprintStatus.LAUNCHED) {
+                delay(30)
+                val elapsed = (System.currentTimeMillis() - sprintLaunchTimeMs) / 1000f
+                _sprintState.update { it.copy(currentElapsedSeconds = elapsed) }
+            }
+        }
+    }
+
+    fun armSprintTimer(target: SprintTarget = SprintTarget.SPEED_0_60) {
+        sprintJob?.cancel()
+        _sprintState.update {
+            it.copy(
+                status = SprintStatus.ARMED,
+                target = target,
+                currentElapsedSeconds = 0f,
+                time0to50 = null,
+                time0to60 = null,
+                time0to100 = null,
+                topSpeedReached = 0f
+            )
+        }
+        if (_voiceAlertEnabled.value) {
+            audioAlertHelper.speak("Đo gia tốc sẵn sàng. Vặn ga để bắt đầu!")
+        }
+    }
+
+    fun cancelSprintTimer() {
+        sprintJob?.cancel()
+        _sprintState.update { it.copy(status = SprintStatus.IDLE) }
+    }
+
+    fun resetSprintRecords() {
+        sprintJob?.cancel()
+        _sprintState.value = SprintTimerState()
+    }
+
+    fun toggleVoiceAlert() {
+        _voiceAlertEnabled.value = !_voiceAlertEnabled.value
+    }
+
+    fun toggleAudioBeep() {
+        _audioBeepEnabled.value = !_audioBeepEnabled.value
+    }
+
+    fun testSimulateSprintRun() {
+        armSprintTimer(_sprintState.value.target)
+        viewModelScope.launch {
+            delay(400)
+            val target = _sprintState.value.target
+            val targetSpeed = target.targetSpeedKmh + 5f
+            var fakeSpeed = 0f
+            while (fakeSpeed <= targetSpeed && _sprintState.value.status != SprintStatus.COMPLETED) {
+                fakeSpeed += 4.5f
+                checkSprintProgress(fakeSpeed)
+                delay(100)
+            }
+        }
+    }
+
     override fun onCleared() {
         super.onCleared()
         simulationJob?.cancel()
         telemetryTimerJob?.cancel()
         messageDismissJob?.cancel()
-        locationSpeedService.stopGpsUpdates()
+        sprintJob?.cancel()
+        audioAlertHelper.release()
+        locationService.stopTracking()
         leanAngleSensor.stopListening()
         obdService.disconnect()
     }
